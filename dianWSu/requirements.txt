@@ -1,0 +1,14 @@
+Django
+gunicorn
+whitenoise
+psycopg[binary]
+python-dotenv
+
+django-environ
+
+cloudinary
+django-cloudinary-storage
+
+Pillow
+
+requests
