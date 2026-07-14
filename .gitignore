@@ -35,7 +35,6 @@ media/
 ############################
 staticfiles/
 static_root/
-static/
 
 ############################
 # Collected Static
