@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+
+{% block title %}會員登入 | dianWSu{% endblock %}
+
+{% block content %}
+<section class="account-section" aria-labelledby="login-title">
+    <div class="account-panel">
+        <p class="eyebrow">Member access</p>
+        <h1 id="login-title">登入或建立會員</h1>
+        <p>請使用 LINE 或 Google 帳號登入；首次登入時會自動建立會員資料。</p>
+        <div class="provider-list">
+            <a class="provider-button" href="{% provider_login_url 'google' process='login' %}">使用 Google 繼續</a>
+            <a class="provider-button" href="{% provider_login_url 'line' process='login' %}">使用 LINE 繼續</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

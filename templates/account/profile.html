@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+
+{% block title %}會員中心 | dianWSu{% endblock %}
+
+{% block content %}
+<section class="account-section" aria-labelledby="profile-title">
+    <div class="account-panel">
+        <p class="eyebrow">Member profile</p>
+        <h1 id="profile-title">會員中心</h1>
+        <p>這是供其他系統對接的基本會員識別資料。</p>
+        <ul class="account-details">
+            <li><span>會員 ID</span><strong>{{ user.id }}</strong></li>
+            <li><span>名稱</span><strong>{{ user.get_full_name|default:user.username }}</strong></li>
+            <li><span>Email</span><strong>{{ user.email|default:"未提供" }}</strong></li>
+            <li><span>已綁定帳號</span><strong>{% for account in accounts %}{{ account.get_provider.name }}{% if not forloop.last %}、{% endif %}{% empty %}尚未綁定{% endfor %}</strong></li>
+        </ul>
+        <div class="account-linking" aria-labelledby="account-linking-title">
+            <h2 id="account-linking-title">綁定登入帳號</h2>
+            <p>可綁定另一個帳號，日後可使用任一已綁定的服務登入。</p>
+            <div class="provider-list">
+                {% if 'google' not in linked_providers %}
+                    <a class="provider-button" href="{% provider_login_url 'google' process='connect' %}">綁定 Google 帳號</a>
+                {% else %}
+                    <span class="provider-status">Google 已綁定</span>
+                {% endif %}
+                {% if 'line' not in linked_providers %}
+                    <a class="provider-button" href="{% provider_login_url 'line' process='connect' %}">綁定 LINE 帳號</a>
+                {% else %}
+                    <span class="provider-status">LINE 已綁定</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

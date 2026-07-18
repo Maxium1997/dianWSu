@@ -1,4 +1,5 @@
 Django
+django-allauth
 gunicorn
 whitenoise
 psycopg[binary]

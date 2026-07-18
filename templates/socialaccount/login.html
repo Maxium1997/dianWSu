@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ provider.name }} 登入確認 | dianWSu{% endblock %}
+
+{% block content %}
+<section class="account-section" aria-labelledby="provider-login-title">
+    <div class="account-panel">
+        <p class="eyebrow">Secure sign in</p>
+        {% if process == "connect" %}
+            <h1 id="provider-login-title">連結 {{ provider.name }} 帳號</h1>
+            <p>你即將把 {{ provider.name }} 帳號連結至目前的會員資料。</p>
+        {% else %}
+            <h1 id="provider-login-title">使用 {{ provider.name }} 登入</h1>
+            <p>按下繼續後，將前往 {{ provider.name }} 完成安全授權與登入。</p>
+        {% endif %}
+        <form class="provider-list" method="post">
+            {% csrf_token %}
+            {% if redirect_field_value %}
+                <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+            <button class="provider-button" type="submit">繼續前往 {{ provider.name }}</button>
+        </form>
+    </div>
+</section>
+{% endblock %}
