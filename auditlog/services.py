@@ -1,5 +1,7 @@
 import logging
 
+from django.conf import settings
+
 from .models import AuditEvent
 
 logger = logging.getLogger(__name__)
@@ -22,9 +24,10 @@ def _redact(value):
 
 
 def _client_ip(request):
-    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    if forwarded_for:
-        return forwarded_for.split(',', maxsplit=1)[0].strip()
+    if settings.TRUST_CLOUDFLARE_PROXY:
+        cloudflare_ip = request.META.get('HTTP_CF_CONNECTING_IP', '')
+        if cloudflare_ip:
+            return cloudflare_ip
     return request.META.get('REMOTE_ADDR') or None
 
 

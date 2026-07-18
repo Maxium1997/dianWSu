@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,15 +28,15 @@ environ.Env.read_env(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-h!=t9%php5kgzsyz=x+_=pef6$2p6#8aa_8l*o1u6xf@(ye&e5'
 SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-DEBUG = env("DEBUG")
+DEBUG = env.bool('DEBUG', default=False)
+DJANGO_ENV = env('DJANGO_ENV', default='development').lower()
+IS_PRODUCTION = DJANGO_ENV == 'production'
 
-ALLOWED_HOSTS = []
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 
 # Application definition
@@ -127,12 +128,19 @@ SOCIALACCOUNT_PROVIDERS = {
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = env('DATABASE_URL', default='')
+if DATABASE_URL:
+    DATABASES = {'default': env.db_url('DATABASE_URL')}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+
+if env.bool('REQUIRE_POSTGRES', default=IS_PRODUCTION) and DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    raise ImproperlyConfigured('DATABASE_URL must point to PostgreSQL in this environment.')
 
 
 # Password validation
@@ -176,7 +184,34 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Keep static assets available when DEBUG=False (for example when testing the
 # production configuration locally). Production deployments should still run
 # `collectstatic` as part of their release process.
-WHITENOISE_USE_FINDERS = True
+WHITENOISE_USE_FINDERS = env.bool('WHITENOISE_USE_FINDERS', default=not IS_PRODUCTION)
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
+
+# Reverse-proxy and HTTPS security. Enable TRUST_CLOUDFLARE_PROXY only when the
+# origin is private (for example, behind Cloudflare Tunnel).
+TRUST_CLOUDFLARE_PROXY = env.bool('TRUST_CLOUDFLARE_PROXY', default=False)
+if TRUST_CLOUDFLARE_PROXY:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=IS_PRODUCTION)
+SECURE_REDIRECT_EXEMPT = [r'^healthz/$']
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=IS_PRODUCTION)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=IS_PRODUCTION)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False)
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
+DEFAULT_CHARSET = 'utf-8'
+FILE_CHARSET = 'utf-8'
 
 
 # System logging and audit retention

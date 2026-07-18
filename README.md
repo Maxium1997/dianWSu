@@ -53,3 +53,88 @@ python manage.py purge_audit_logs
 Application errors are emitted as JSON to standard output so the deployment
 platform can collect and retain them separately. File-integrity monitoring and
 alerts for unexpected server files must be configured at the hosting layer.
+
+## Cloudflare production deployment
+
+This is a Django WSGI application. Deploy it to a Python-capable origin (a VPS,
+container host, or Kubernetes) and place Cloudflare in front of it. Do not use
+Cloudflare Pages as the Django application host. Cloudflare Tunnel is the
+recommended origin connection because it does not expose an inbound port or
+public origin IP.
+
+### 1. Configure the production environment
+
+Set secrets in the origin platform's secret manager, never in Git:
+
+```env
+DJANGO_ENV=production
+DEBUG=False
+SECRET_KEY=<a-new-long-random-secret>
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+REQUIRE_POSTGRES=True
+ALLOWED_HOSTS=app.example.com
+CSRF_TRUSTED_ORIGINS=https://app.example.com
+TRUST_CLOUDFLARE_PROXY=True
+SECURE_SSL_REDIRECT=True
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS=True
+SECURE_HSTS_PRELOAD=False
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+LINE_CHANNEL_ID=
+LINE_CHANNEL_SECRET=
+```
+
+Start with `SECURE_HSTS_SECONDS=0` until HTTPS has been verified on the final
+domain. Enable the one-year value only after that check succeeds. Set
+`SECURE_HSTS_PRELOAD=True` only if every present and future subdomain is HTTPS
+ready and you intentionally plan to submit the domain to the preload list.
+
+### 2. Build and release the origin
+
+The included `Dockerfile` runs Gunicorn. During each release, run these commands
+once against the production environment before starting new application workers:
+
+```bash
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
+python manage.py configure_site --domain app.example.com
+python manage.py check --deploy
+```
+
+Schedule `python manage.py purge_audit_logs` daily. The health endpoint is
+available at `/healthz/` and returns JSON without creating an audit event.
+
+### 3. Configure Cloudflare
+
+1. Add the domain to Cloudflare and create a Cloudflare Tunnel in **Zero Trust
+   > Networks > Tunnels**. Run the connector on the origin and map the public
+   hostname `app.example.com` to the private Gunicorn service, for example
+   `http://127.0.0.1:8000`.
+2. Keep the public hostname proxied by Cloudflare. Enforce HTTPS at the edge.
+   With Tunnel, the origin service can remain private HTTP because the tunnel is
+   outbound and encrypted.
+3. Under **Security > WAF**, enable Managed Rules. Add rate limiting or Managed
+   Challenge rules for `/accounts/*` and `/admin/*`; do not challenge OAuth
+   callback requests so aggressively that a normal provider redirect is blocked.
+4. Under **Caching > Cache Rules**, bypass cache for `/admin/*`, `/accounts/*`,
+   `/member/*`, and any request carrying a session cookie. Cache `/static/*`
+   normally; `collectstatic` gives those assets content-hashed names.
+5. Optionally protect `/admin/*` with Cloudflare Access. Do not apply Access to
+   `/accounts/*`, because Google and LINE must reach their callback URLs.
+6. In Google Cloud Console and LINE Developers, add these exact HTTPS callbacks:
+
+   ```text
+   https://app.example.com/accounts/google/login/callback/
+   https://app.example.com/accounts/line/login/callback/
+   ```
+
+### Character encoding and fonts
+
+Templates declare UTF-8, Django uses UTF-8 for responses, and the Docker image
+sets `PYTHONUTF8=1` with `C.UTF-8`; Chinese text will not become mojibake after
+deployment. The Noto Sans TC web font is loaded from Google Fonts. If that CDN
+is unavailable, browsers use the system CJK fallback font; the appearance may
+change slightly, but text encoding remains correct.
