@@ -73,10 +73,12 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
-    entrypoint: ["sh", "-c"]
-    command: ["cloudflared tunnel --no-autoupdate run --token \"$$TUNNEL_TOKEN\""]
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
     depends_on:
       web:
         condition: service_healthy
