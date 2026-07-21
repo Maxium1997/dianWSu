@@ -78,7 +78,7 @@ services:
       - --no-autoupdate
       - run
       - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+      - ${CLOUDFLARE_TUNNEL_TOKEN_ACTIVE:?Set CLOUDFLARE_TUNNEL_TOKEN_ACTIVE in .env}
     depends_on:
       web:
         condition: service_healthy

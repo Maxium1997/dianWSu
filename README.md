@@ -140,7 +140,7 @@ configured 180-day retention window once a day.
    SECURE_SSL_REDIRECT=True
    SESSION_COOKIE_SECURE=True
    CSRF_COOKIE_SECURE=True
-   CLOUDFLARE_TUNNEL_TOKEN=<from Cloudflare Dashboard>
+   CLOUDFLARE_TUNNEL_TOKEN_ACTIVE=<from Cloudflare Dashboard>
    ```
 
 4. Limit the secret file to the current macOS account:
