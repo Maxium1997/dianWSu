@@ -196,6 +196,20 @@ such as Cloudflare R2. Do not expose PostgreSQL to the host or public internet.
 The health endpoint is available at `/healthz/` and returns JSON without
 creating an audit event.
 
+### Local development
+
+Keep local development separate from the production Docker environment:
+
+```bash
+cp .env.development.example .env.development
+DJANGO_ENV_FILE=.env.development .venv/bin/python manage.py migrate
+DJANGO_ENV_FILE=.env.development .venv/bin/python manage.py runserver 127.0.0.1:8000
+```
+
+The local environment uses SQLite and `DEBUG=True`; it never connects to the
+Docker PostgreSQL service. To test Google or LINE locally, add the local OAuth
+credentials to `.env.development` and register their localhost callback URLs.
+
 ### 3. Configure Cloudflare
 
 1. Add the domain to Cloudflare and create a Cloudflare Tunnel in **Zero Trust

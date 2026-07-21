@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 import environ
 from django.core.exceptions import ImproperlyConfigured
 
@@ -21,9 +22,10 @@ env = environ.Env(
     DEBUG=(bool, False)
 )
 
-# Later entries in .env intentionally override earlier local-development
-# defaults, so a deployment-specific block can safely replace them.
-environ.Env.read_env(BASE_DIR / ".env", overwrite=True)
+# Docker uses .env. Local development opts into the isolated SQLite settings by
+# setting DJANGO_ENV_FILE=.env.development before running manage.py.
+ENV_FILE = Path(os.environ.get("DJANGO_ENV_FILE", BASE_DIR / ".env"))
+environ.Env.read_env(ENV_FILE, overwrite=True)
 
 
 # Quick-start development settings - unsuitable for production
