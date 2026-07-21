@@ -104,8 +104,97 @@ python manage.py configure_site --domain app.example.com
 python manage.py check --deploy
 ```
 
-Schedule `python manage.py purge_audit_logs` daily. The health endpoint is
-available at `/healthz/` and returns JSON without creating an audit event.
+### Mac mini with Docker Compose
+
+For a personal Mac mini origin, use the included `compose.yaml`. It has no
+published ports: the web service, PostgreSQL, scheduler, and Cloudflare Tunnel
+communicate only on a private Docker network. Do not add host mounts or Docker
+socket mounts to the services. The scheduler removes audit logs older than the
+configured 180-day retention window once a day.
+
+1. Install and open Docker Desktop. Confirm it is running with `docker version`.
+   If zsh cannot find the command, run this once in that terminal:
+
+   ```bash
+   export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
+   ```
+2. In Cloudflare Dashboard, go to **Networking > Tunnels**, create a remotely
+   managed tunnel, and copy its token. This setup does not require installing
+   `cloudflared` on macOS.
+3. Copy `.env.example` to `.env`, then set the production values below. The
+   `DATABASE_URL` password must match `POSTGRES_PASSWORD`:
+
+   ```env
+   DJANGO_ENV=production
+   DEBUG=False
+   SECRET_KEY=<a-new-long-random-secret>
+   DATABASE_URL=postgresql://dianwsu:CHANGE_ME@db:5432/dianwsu
+   REQUIRE_POSTGRES=True
+   POSTGRES_DB=dianwsu
+   POSTGRES_USER=dianwsu
+   POSTGRES_PASSWORD=CHANGE_ME
+   ALLOWED_HOSTS=dotwebsite.cc
+   HEALTHCHECK_HOST=dotwebsite.cc
+   CSRF_TRUSTED_ORIGINS=https://dotwebsite.cc
+   TRUST_CLOUDFLARE_PROXY=True
+   SECURE_SSL_REDIRECT=True
+   SESSION_COOKIE_SECURE=True
+   CSRF_COOKIE_SECURE=True
+   CLOUDFLARE_TUNNEL_TOKEN=<from Cloudflare Dashboard>
+   ```
+
+4. Limit the secret file to the current macOS account:
+
+   ```bash
+   chmod 600 .env
+   ```
+
+5. Build and start PostgreSQL, then run the one-time release commands:
+
+   ```bash
+   docker compose config --quiet
+   docker compose build web
+   docker compose up -d db
+   docker compose run --rm web python manage.py migrate --noinput
+   docker compose run --rm web python manage.py configure_site --domain dotwebsite.cc
+   docker compose run --rm web python manage.py check --deploy
+   docker compose up -d
+   ```
+
+   Use `docker compose config --quiet`, not plain `docker compose config`:
+   the non-quiet command can print values from `.env`.
+
+6. Under the tunnel's public hostname, map `dotwebsite.cc` to
+   `http://web:8000`. Cloudflare creates the proxied DNS record automatically.
+   Use `dotwebsite.cc` as the sole canonical hostname. If you later enable
+   `www`, add it to both Django allow lists and create a Cloudflare Redirect
+   Rule from `www.dotwebsite.cc` to `https://dotwebsite.cc`.
+
+   Update the OAuth provider callback settings before testing sign-in:
+
+   ```text
+   Google: https://dotwebsite.cc/accounts/google/login/callback/
+   LINE:   https://dotwebsite.cc/accounts/line/login/callback/
+   ```
+
+7. Confirm the service is healthy:
+
+   ```bash
+   docker compose ps
+   docker compose logs --tail=100 web cloudflared
+   ```
+
+Run a local encrypted PostgreSQL dump with:
+
+```bash
+bash scripts/backup_postgres.sh
+```
+
+Copy the resulting file in `backups/` to an off-device encrypted destination
+such as Cloudflare R2. Do not expose PostgreSQL to the host or public internet.
+
+The health endpoint is available at `/healthz/` and returns JSON without
+creating an audit event.
 
 ### 3. Configure Cloudflare
 

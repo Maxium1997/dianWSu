@@ -1,0 +1,97 @@
+name: dianwsu
+
+services:
+  web:
+    build: .
+    image: dianwsu-web:latest
+    env_file:
+      - .env
+    restart: unless-stopped
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - private
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from urllib.request import Request, urlopen; urlopen(Request('http://127.0.0.1:8000/healthz/', headers={'Host': os.environ['HEALTHCHECK_HOST']}), timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  scheduler:
+    image: dianwsu-web:latest
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - private
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - sh
+      - -c
+      - while true; do python manage.py purge_audit_logs && sleep 86400 || sleep 300; done
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    command: ["sh", "-c", "cloudflared tunnel --no-autoupdate run --token \"$$TUNNEL_TOKEN\""]
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - private
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  private:
+    driver: bridge
+
+volumes:
+  postgres_data:

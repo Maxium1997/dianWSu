@@ -21,7 +21,9 @@ env = environ.Env(
     DEBUG=(bool, False)
 )
 
-environ.Env.read_env(BASE_DIR / ".env")
+# Later entries in .env intentionally override earlier local-development
+# defaults, so a deployment-specific block can safely replace them.
+environ.Env.read_env(BASE_DIR / ".env", overwrite=True)
 
 
 # Quick-start development settings - unsuitable for production
