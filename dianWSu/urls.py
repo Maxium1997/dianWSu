@@ -23,6 +23,8 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('healthz/', views.healthz, name='healthz'),
     path('member/', views.profile, name='profile'),
+    path('accounts/line/rental-login/', views.rental_line_login, name='rental_line_login'),
+    path('accounts/line/rental-complete/', views.rental_line_complete, name='rental_line_complete'),
     path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
     path('', include('rental.urls')),

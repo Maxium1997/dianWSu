@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from .models import (
     Bill, BillLineItem, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
@@ -47,3 +48,16 @@ class RentalBillingTests(TestCase):
         self.assertEqual(rate_for_period(self.lease, date(2026, 7, 1)), Decimal('6'))
         self.assertEqual(rate_for_period(self.lease, date(2026, 1, 1)), Decimal('5'))
         self.assertTrue(is_lease_tenant(self.tenant_user, self.lease))
+
+
+class RentalLoginTests(TestCase):
+    def test_line_login_uses_primary_domain_flow_from_rental_subdomain(self):
+        response = self.client.get('/accounts/login/', HTTP_HOST='rental-management.dotwebsite.cc')
+        self.assertContains(response, reverse('rental_line_login'))
+
+        start = self.client.get(reverse('rental_line_login'), HTTP_HOST='rental-management.dotwebsite.cc')
+        self.assertRedirects(
+            start,
+            'https://dotwebsite.cc/accounts/line/login/?process=login&next=/accounts/line/rental-complete/',
+            fetch_redirect_response=False,
+        )

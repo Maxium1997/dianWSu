@@ -1,7 +1,7 @@
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 
 def index(request):
@@ -13,6 +13,20 @@ def index(request):
 
 def healthz(request):
     return JsonResponse({'status': 'ok'})
+
+
+def rental_line_login(request):
+    """Start LINE OAuth on the primary domain, which LINE permits as one callback."""
+    return redirect(
+        'https://dotwebsite.cc/accounts/line/login/'
+        '?process=login&next=/accounts/line/rental-complete/'
+    )
+
+
+@login_required
+def rental_line_complete(request):
+    """Return the shared authenticated session to the rental application."""
+    return redirect('https://rental-management.dotwebsite.cc/')
 
 
 @login_required
