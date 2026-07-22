@@ -5,6 +5,9 @@ from django.shortcuts import render
 
 
 def index(request):
+    if request.get_host().split(':', 1)[0].lower() == 'rental-management.dotwebsite.cc':
+        from rental.views import dashboard
+        return dashboard(request)
     return render(request, "index.html")
 
 

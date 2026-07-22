@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{% block rental_title %}租賃管理系統{% endblock %} | dianWSu{% endblock %}
+
+{% block primary_nav %}
+<a href="{% url 'rental:dashboard' %}">總覽</a>
+<a href="{% url 'rental:property_list' %}">物件</a>
+<a href="{% url 'rental:bill_list' %}">帳單</a>
+<a href="{% url 'rental:invitation_list' %}">租客邀請</a>
+<a href="{% url 'rental:maintenance_list' %}">報修</a>
+<a href="{% url 'rental:announcement_list' %}">公告</a>
+<a href="https://dotwebsite.cc/member/">會員中心</a>
+<form class="nav-logout" action="{% url 'account_logout' %}" method="post">
+    {% csrf_token %}
+    <button class="nav-action" type="submit">登出</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<section class="rental-section">
+    {% if messages %}
+        <div class="message-stack" aria-live="polite">
+            {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    {% block rental_content %}{% endblock %}
+</section>
+{% endblock %}

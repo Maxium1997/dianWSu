@@ -17,6 +17,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:mode=1777,noexec,nosuid,size=64m
+    volumes:
+      - rental_media:/app/media
     cap_drop:
       - ALL
     security_opt:
@@ -68,7 +70,7 @@ services:
     command:
       - sh
       - -c
-      - while true; do python manage.py purge_audit_logs && sleep 86400 || sleep 300; done
+      - while true; do python manage.py generate_rental_bills && python manage.py purge_audit_logs && sleep 86400 || sleep 300; done
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -98,3 +100,4 @@ networks:
 
 volumes:
   postgres_data:
+  rental_media:

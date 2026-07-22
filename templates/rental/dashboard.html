@@ -1,0 +1,67 @@
+{% extends "rental/base.html" %}
+
+{% block rental_title %}租賃管理總覽{% endblock %}
+
+{% block rental_content %}
+<div class="rental-heading">
+    <div>
+        <p class="eyebrow">Rental management</p>
+        <h1>租賃管理系統</h1>
+        <p>管理物件、租客、帳單及日常租賃流程。</p>
+    </div>
+    {% if managed_properties.exists %}<a class="button" href="{% url 'rental:property_create' %}">新增物件</a>{% endif %}
+</div>
+
+{% if has_tenant_role %}
+<section class="rental-panel">
+    <div class="panel-heading"><h2>我的租客工作區</h2><a href="{% url 'rental:bill_list' %}">查看帳單</a></div>
+    <div class="simple-grid">
+        {% for lease in tenant_leases %}
+        <article class="summary-card">
+            <span>{{ lease.get_status_display }}</span>
+            <strong>{{ lease.unit.property.name }} · {{ lease.unit.number }}</strong>
+            <small>{{ lease.start_date }} 至 {{ lease.end_date }}</small>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="rental-panel">
+    <div class="panel-heading">
+        <h2>管理者工作區</h2>
+        <a href="{% url 'rental:property_list' %}">管理物件</a>
+    </div>
+    {% if managed_properties %}
+    <div class="simple-grid">
+        {% for property in managed_properties %}
+        <a class="summary-card link-card" href="{% url 'rental:property_detail' property.id %}">
+            <span>{{ property.get_status_display }}</span>
+            <strong>{{ property.name }}</strong>
+            <small>{{ property.address }} · {{ property.units.count }} 間房</small>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>你目前尚未管理任何物件。</p>
+        <a class="button" href="{% url 'rental:property_create' %}">建立第一個物件</a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="rental-panel">
+    <div class="panel-heading"><h2>近期帳單</h2><a href="{% url 'rental:bill_list' %}">全部帳單</a></div>
+    {% if bills %}
+    <div class="data-list">
+        {% for bill in bills %}
+        <a href="{% url 'rental:bill_detail' bill.id %}">
+            <span>{{ bill.period|date:"Y 年 m 月" }}</span>
+            <strong>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</strong>
+            <em class="status status-{{ bill.status }}">{{ bill.get_status_display }}</em>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}<p class="muted">尚無帳單。有效租約將由每日排程自動建立當月帳單。</p>{% endif %}
+</section>
+{% endblock %}

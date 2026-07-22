@@ -1,0 +1,8 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}租客邀請{% endblock %}
+{% block rental_content %}
+<div class="rental-heading"><div><p class="eyebrow">Tenant invitations</p><h1>租客邀請</h1><p>邀請連結有效期限為建立後 3 天。</p></div><a class="button" href="{% url 'rental:invitation_create' %}">建立邀請</a></div>
+<section class="rental-panel">
+{% if invitations %}<div class="data-list">{% for invitation in invitations %}<div><span>{{ invitation.created_at|date:"Y/m/d H:i" }}</span><strong>{{ invitation.invited_name }} · {{ invitation.lease.unit.property.name }} {{ invitation.lease.unit.number }}<br><small class="muted">{{ request.scheme }}://{{ request.get_host }}{% url 'rental:invitation_accept' invitation.token %}</small></strong><em class="status">{% if invitation.accepted_at %}已接受{% elif invitation.is_usable %}有效至 {{ invitation.expires_at|date:"m/d H:i" }}{% else %}已失效{% endif %}</em></div>{% endfor %}</div>{% else %}<div class="empty-state"><p>尚未建立租客邀請。</p></div>{% endif %}
+</section>
+{% endblock %}

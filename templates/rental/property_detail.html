@@ -1,0 +1,16 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}{{ property.name }}{% endblock %}
+{% block rental_content %}
+<div class="rental-heading"><div><p class="eyebrow">Property</p><h1>{{ property.name }}</h1><p>{{ property.address }}</p></div><a class="button" href="{% url 'rental:unit_create' property.id %}">新增房間</a></div>
+{% if property.description %}<section class="rental-panel"><p>{{ property.description }}</p></section>{% endif %}
+<section class="rental-panel">
+    <div class="panel-heading"><h2>房間</h2><span>{{ property.units.count }} 間</span></div>
+    {% if property.units.all %}
+    <div class="data-list">
+        {% for unit in property.units.all %}
+        <div><span>{{ unit.floor|default:"未設定樓層" }}</span><strong>{{ unit.number }}{% if unit.room_type %} · {{ unit.room_type }}{% endif %}</strong><em><a class="status status-{{ unit.status }}" href="{% url 'rental:lease_create' unit.id %}">建立租約</a></em></div>
+        {% endfor %}
+    </div>
+    {% else %}<p class="muted">尚未建立房間。房間的設備與現況照片可在管理後台補充。</p>{% endif %}
+</section>
+{% endblock %}

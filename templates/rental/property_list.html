@@ -1,0 +1,16 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}物件管理{% endblock %}
+{% block rental_content %}
+<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>物件管理</h1><p>建立與管理你具有權限的物件及房間。</p></div><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div>
+<section class="rental-panel">
+    {% if properties %}
+    <div class="simple-grid">
+        {% for property in properties %}
+        <a class="summary-card link-card" href="{% url 'rental:property_detail' property.id %}">
+            <span>{{ property.get_status_display }}</span><strong>{{ property.name }}</strong><small>{{ property.address }}</small>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}<div class="empty-state"><p>尚未建立物件。</p></div>{% endif %}
+</section>
+{% endblock %}

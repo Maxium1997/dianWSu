@@ -3,7 +3,9 @@ from allauth.socialaccount.signals import (
     social_account_removed,
     social_account_updated,
 )
+from django.contrib.admin.models import LogEntry
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .models import AuditEvent
@@ -83,4 +85,29 @@ def record_social_account_removed(sender, request, socialaccount, **kwargs):
         request=request,
         actor=socialaccount.user,
         metadata={'provider': socialaccount.provider},
+    )
+
+
+@receiver(post_save, sender=LogEntry)
+def record_admin_operation(sender, instance, created, **kwargs):
+    """Mirror Django Admin mutations into the immutable system audit log."""
+    if not created:
+        return
+    action_names = {
+        LogEntry.ADDITION: '新增',
+        LogEntry.CHANGE: '修改',
+        LogEntry.DELETION: '刪除',
+    }
+    action = action_names.get(instance.action_flag, '操作')
+    log_event(
+        'system.admin_operation',
+        category=AuditEvent.Category.SYSTEM,
+        message=f'管理後台{action}資料',
+        actor=instance.user,
+        metadata={
+            'content_type': str(instance.content_type),
+            'object_id': instance.object_id,
+            'object_repr': instance.object_repr,
+            'action': action,
+        },
     )

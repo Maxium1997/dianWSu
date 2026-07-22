@@ -1,0 +1,14 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}租客邀請{% endblock %}
+{% block rental_content %}
+<section class="rental-panel invitation-panel">
+{% if usable %}
+<p class="eyebrow">Tenant invitation</p><h1>接受租約邀請</h1>
+<p>你將以目前登入的帳號，綁定至 {{ invitation.lease.unit.property.name }} {{ invitation.lease.unit.number }} 的租約。</p>
+<p class="muted">此連結將於 {{ invitation.expires_at|date:"Y/m/d H:i" }} 到期。</p>
+<form method="post">{% csrf_token %}<button class="button" type="submit">接受並綁定租約</button></form>
+{% else %}
+<p class="eyebrow">Tenant invitation</p><h1>此邀請連結已失效</h1><p>邀請可能已被接受或已超過 3 天有效期限，請聯絡物件管理者重新產生邀請。</p>
+{% endif %}
+</section>
+{% endblock %}

@@ -25,4 +25,5 @@ urlpatterns = [
     path('member/', views.profile, name='profile'),
     path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
+    path('', include('rental.urls')),
 ]

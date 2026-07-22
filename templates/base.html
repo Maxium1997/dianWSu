@@ -26,6 +26,7 @@
             </button>
 
             <nav class="site-nav" aria-label="主要導覽" data-site-nav>
+                {% block primary_nav %}
                 <a href="{% url 'index' %}">Home</a>
                 <a href="#features">Features</a>
                 <a href="#resources">Resources</a>
@@ -38,6 +39,7 @@
                 {% else %}
                     <a class="nav-action" href="{% url 'account_login' %}">會員登入</a>
                 {% endif %}
+                {% endblock %}
             </nav>
         </header>
 

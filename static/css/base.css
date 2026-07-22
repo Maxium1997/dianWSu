@@ -455,6 +455,272 @@ a {
     font-weight: 700;
 }
 
+.rental-section {
+    padding: 96px 0 72px;
+}
+
+.rental-heading {
+    margin-bottom: 22px;
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.rental-heading h1,
+.rental-panel h2 {
+    margin: 0;
+}
+
+.rental-heading > div > p:not(.eyebrow) {
+    margin: 10px 0 0;
+    color: var(--muted);
+}
+
+.rental-panel {
+    margin-top: 16px;
+    padding: clamp(20px, 4vw, 30px);
+    border: 1px solid var(--glass-line);
+    border-radius: var(--radius);
+    background: var(--surface-glass);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+}
+
+.panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.panel-heading a,
+.data-list a:hover strong {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.simple-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.summary-card {
+    min-height: 112px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-strong);
+}
+
+.link-card:hover,
+.link-card:focus-visible {
+    border-color: var(--line-strong);
+    background: var(--surface-glass-strong);
+    outline: none;
+}
+
+.summary-card span,
+.summary-card small,
+.muted {
+    color: var(--muted);
+}
+
+.data-list {
+    margin-top: 18px;
+    display: grid;
+    border-top: 1px solid var(--line);
+}
+
+.data-list > a,
+.data-list > div {
+    min-height: 62px;
+    padding: 12px 0;
+    display: grid;
+    grid-template-columns: minmax(120px, .75fr) minmax(0, 2fr) auto;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.data-list span,
+.data-list em {
+    color: var(--muted);
+    font-size: .86rem;
+    font-style: normal;
+}
+
+.status {
+    width: fit-content;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg-strong);
+    white-space: nowrap;
+}
+
+.status-paid,
+.status-completed,
+.status-active,
+.status-available {
+    color: var(--text) !important;
+    border-color: var(--line-strong);
+}
+
+.status.overdue {
+    border-style: dashed;
+}
+
+.button {
+    min-height: 42px;
+    padding: 10px 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    color: var(--on-accent);
+    background: var(--accent);
+    font: inherit;
+    font-size: .88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.button:hover,
+.button:focus-visible {
+    color: var(--on-accent);
+    background: var(--accent-dark);
+    outline: none;
+}
+
+.rental-form {
+    margin-top: 18px;
+    display: grid;
+    gap: 16px;
+}
+
+.rental-form label {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font-size: .9rem;
+    font-weight: 700;
+}
+
+.rental-form input,
+.rental-form select,
+.rental-form textarea,
+.inline-form input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    background: var(--surface-strong);
+    font: inherit;
+}
+
+.rental-form input:focus,
+.rental-form select:focus,
+.rental-form textarea:focus,
+.inline-form input:focus {
+    border-color: var(--line-strong);
+    outline: 2px solid var(--grid);
+}
+
+.rental-form small {
+    font-weight: 400;
+}
+
+.field-error {
+    color: var(--text);
+    text-decoration: underline;
+}
+
+.inline-form {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+}
+
+.empty-state {
+    padding: 24px 0 4px;
+    text-align: center;
+}
+
+.message-stack {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.message {
+    margin: 0;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface-glass-strong);
+}
+
+.timeline {
+    margin-top: 16px;
+    display: grid;
+    gap: 0;
+    border-left: 1px solid var(--line-strong);
+}
+
+.timeline article {
+    padding: 0 0 16px 16px;
+    display: grid;
+    gap: 5px;
+}
+
+.timeline span,
+.timeline p {
+    margin: 0;
+    color: var(--muted);
+    font-size: .88rem;
+}
+
+.announcement-list {
+    display: grid;
+    gap: 20px;
+}
+
+.announcement-list article + article {
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+
+.announcement-list h2 {
+    margin: 6px 0;
+}
+
+.announcement-list p,
+.announcement-list span {
+    color: var(--muted);
+    line-height: 1.8;
+}
+
+.invitation-panel {
+    max-width: 680px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+@media (max-width: 900px) {
+    .simple-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 900px) {
     .entry-section {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -514,6 +780,29 @@ a {
     .entry-section,
     .footer-grid {
         grid-template-columns: 1fr;
+    }
+
+    .rental-section {
+        padding-top: 78px;
+    }
+
+    .rental-heading {
+        align-items: start;
+        flex-direction: column;
+    }
+
+    .simple-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .data-list > a,
+    .data-list > div {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    .inline-form {
+        flex-direction: column;
     }
 
     .entry-card {

@@ -1,0 +1,8 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}公告{% endblock %}
+{% block rental_content %}
+<div class="rental-heading"><div><p class="eyebrow">Announcements</p><h1>公告</h1><p>物件與系統公告將顯示在此。</p></div></div>
+<section class="rental-panel">
+{% if announcements %}<div class="announcement-list">{% for announcement in announcements %}<article><span>{{ announcement.published_at|date:"Y/m/d" }}{% if announcement.property %} · {{ announcement.property.name }}{% endif %}</span><h2>{{ announcement.title }}</h2><p>{{ announcement.content|linebreaksbr }}</p></article>{% endfor %}</div>{% else %}<div class="empty-state"><p>目前沒有公告。</p></div>{% endif %}
+</section>
+{% endblock %}

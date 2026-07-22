@@ -1,0 +1,34 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}{{ bill.period|date:"Y 年 m 月" }}帳單{% endblock %}
+{% block rental_content %}
+<div class="rental-heading"><div><p class="eyebrow">Bill {{ bill.period|date:"Y-m" }}</p><h1>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</h1><p>付款期限：{{ bill.due_date|date:"Y/m/d" }} · <span class="status status-{{ bill.status }}">{{ bill.get_status_display }}</span></p></div></div>
+<section class="rental-panel">
+<div class="panel-heading"><h2>帳單明細</h2><strong>NT$ {{ bill.total_amount }}</strong></div>
+<div class="data-list">
+{% for item in bill.items.all %}<div><span>{{ item.name }}</span><strong>NT$ {{ item.amount }}</strong><em>{% if item.tenant_editable %}租客可填寫{% endif %}</em></div>{% endfor %}
+</div>
+</section>
+
+{% if tenant_form %}
+<section class="rental-panel">
+<h2>填寫帳單資訊</h2><p class="muted">填寫完成後會提交給管理者確認；電表讀數需附上電表照片。</p>
+<form method="post" action="{% url 'rental:bill_submit' bill.id %}" enctype="multipart/form-data" class="rental-form">
+{% csrf_token %}{% for field in tenant_form %}<label>{{ field.label }}{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>{% endfor %}
+<button class="button" type="submit">提交帳單</button></form>
+</section>
+{% endif %}
+
+{% if is_manager and bill.status == 'submitted' %}
+<section class="rental-panel"><h2>管理者確認</h2><form method="post" action="{% url 'rental:bill_confirm' bill.id %}" class="inline-form">{% csrf_token %}<input name="note" placeholder="確認備註（選填）"><button class="button" type="submit">確認帳單</button></form></section>
+{% endif %}
+
+{% if payment_form %}
+<section class="rental-panel"><h2>付款</h2><form method="post" action="{% url 'rental:bill_payment' bill.id %}" enctype="multipart/form-data" class="rental-form">{% csrf_token %}{% for field in payment_form %}<label>{{ field.label }}{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>{% endfor %}<button class="button" type="submit">提交付款資料</button></form></section>
+{% endif %}
+
+{% if is_manager and bill.status == 'payment_submitted' %}
+<section class="rental-panel"><h2>確認收款</h2><p class="muted">租客已提交付款資料。確認後帳單將結案。</p><form method="post" action="{% url 'rental:bill_payment_confirm' bill.id %}" class="inline-form">{% csrf_token %}<input name="note" placeholder="收款確認備註（選填）"><button class="button" type="submit">確認收款並結案</button></form></section>
+{% endif %}
+
+<section class="rental-panel"><div class="panel-heading"><h2>帳單歷程與快照</h2><span>{{ bill.snapshots.count }} 筆</span></div><div class="timeline">{% for snapshot in bill.snapshots.all %}<article><strong>{{ snapshot.event_type }}</strong><span>{{ snapshot.created_at|date:"Y/m/d H:i" }}{% if snapshot.actor %} · {{ snapshot.actor.get_username }}{% endif %}</span>{% if snapshot.note %}<p>{{ snapshot.note }}</p>{% endif %}</article>{% empty %}<p class="muted">尚無快照。</p>{% endfor %}</div></section>
+{% endblock %}
