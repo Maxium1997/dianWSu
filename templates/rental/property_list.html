@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}物件管理{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>物件管理</h1><p>建立與管理你具有權限的物件及房間。</p></div><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div>
+<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>物件管理</h1><p>建立與管理你具有權限的物件及房間。</p></div><div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div></div>
 <section class="rental-panel">
     {% if properties %}
     <div class="simple-grid">

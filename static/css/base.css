@@ -654,6 +654,30 @@ a {
     outline: none;
 }
 
+.button-secondary {
+    border-color: var(--line-strong);
+    color: var(--text);
+    background: var(--surface-glass-strong);
+}
+
+.button-secondary:hover,
+.button-secondary:focus-visible {
+    color: var(--text);
+    background: var(--bg-strong);
+}
+
+.button-row,
+.item-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.item-actions {
+    justify-content: end;
+}
+
 .rental-form {
     margin-top: 18px;
     display: grid;

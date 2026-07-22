@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}{{ bill.period|date:"Y 年 m 月" }}帳單{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Bill {{ bill.period|date:"Y-m" }}</p><h1>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</h1><p>付款期限：{{ bill.due_date|date:"Y/m/d" }} · <span class="status status-{{ bill.status }}">{{ bill.get_status_display }}</span></p></div></div>
+<div class="rental-heading"><div><p class="eyebrow">Bill {{ bill.period|date:"Y-m" }}</p><h1>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</h1><p>付款期限：{{ bill.due_date|date:"Y/m/d" }} · <span class="status status-{{ bill.status }}">{{ bill.get_status_display }}</span></p></div><a class="button button-secondary" href="{% url 'rental:bill_list' %}">返回帳單</a></div>
 <section class="rental-panel">
 <div class="panel-heading"><h2>帳單明細</h2><strong>NT$ {{ bill.total_amount }}</strong></div>
 <div class="data-list">

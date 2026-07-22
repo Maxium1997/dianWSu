@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -68,13 +69,30 @@ def property_create(request):
         log_event('rental.property.created', category=AuditEvent.Category.SYSTEM, message='已建立租賃物件', request=request, metadata={'property_id': property_.id})
         messages.success(request, '物件已建立。')
         return redirect('rental:property_detail', property_id=property_.id)
-    return render(request, 'rental/form.html', {'form': form, 'title': '建立物件'})
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': '建立物件', 'back_url': reverse('rental:property_list'),
+    })
 
 
 @login_required
 def property_detail(request, property_id):
     property_ = get_object_or_404(_managed_properties(request.user), pk=property_id)
     return render(request, 'rental/property_detail.html', {'property': property_})
+
+
+@login_required
+def property_edit(request, property_id):
+    property_ = get_object_or_404(_managed_properties(request.user), pk=property_id)
+    form = PropertyForm(request.POST or None, instance=property_)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        log_event('rental.property.updated', category=AuditEvent.Category.SYSTEM, message='已更新租賃物件', request=request, metadata={'property_id': property_.id})
+        messages.success(request, '物件資料已更新。')
+        return redirect('rental:property_detail', property_id=property_.id)
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': f'編輯 {property_.name}',
+        'back_url': reverse('rental:property_detail', args=[property_.id]),
+    })
 
 
 @login_required
@@ -91,7 +109,28 @@ def unit_create(request, property_id):
         log_event('rental.unit.created', category=AuditEvent.Category.SYSTEM, message='已建立房間', request=request, metadata={'property_id': property_.id, 'unit_id': unit.id})
         messages.success(request, '房間已建立。可在 Django Admin 補充設備與最多 6 張現況照片。')
         return redirect('rental:property_detail', property_id=property_.id)
-    return render(request, 'rental/form.html', {'form': form, 'title': f'新增 {property_.name} 的房間'})
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': f'新增 {property_.name} 的房間',
+        'back_url': reverse('rental:property_detail', args=[property_.id]),
+    })
+
+
+@login_required
+def unit_edit(request, unit_id):
+    unit = get_object_or_404(Unit.objects.select_related('property'), pk=unit_id)
+    denied = _manager_or_403(request.user, unit.property)
+    if denied:
+        return denied
+    form = UnitForm(request.POST or None, instance=unit)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        log_event('rental.unit.updated', category=AuditEvent.Category.SYSTEM, message='已更新房間資料', request=request, metadata={'property_id': unit.property_id, 'unit_id': unit.id})
+        messages.success(request, '房間資料已更新。')
+        return redirect('rental:property_detail', property_id=unit.property_id)
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': f'編輯 {unit.property.name} {unit.number}',
+        'back_url': reverse('rental:property_detail', args=[unit.property_id]),
+    })
 
 
 @login_required
@@ -111,7 +150,10 @@ def lease_create(request, unit_id):
         log_event('rental.lease.created', category=AuditEvent.Category.SYSTEM, message='已建立租約', request=request, metadata={'lease_id': lease.id, 'unit_id': unit.id})
         messages.success(request, '租約已建立。現在可以建立租客邀請連結。')
         return redirect('rental:invitation_create')
-    return render(request, 'rental/form.html', {'form': form, 'title': f'建立 {unit.property.name} {unit.number} 的租約'})
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': f'建立 {unit.property.name} {unit.number} 的租約',
+        'back_url': reverse('rental:property_detail', args=[unit.property_id]),
+    })
 
 
 @login_required
@@ -231,7 +273,9 @@ def invitation_create(request):
         log_event('rental.invitation.created', category=AuditEvent.Category.SYSTEM, message='已建立租客邀請連結', request=request, metadata={'invitation_id': invitation.id, 'lease_id': invitation.lease_id})
         messages.success(request, '邀請連結已建立，有效期限為 3 天。')
         return redirect('rental:invitation_list')
-    return render(request, 'rental/form.html', {'form': form, 'title': '建立租客邀請'})
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': '建立租客邀請', 'back_url': reverse('rental:invitation_list'),
+    })
 
 
 @login_required
@@ -260,7 +304,9 @@ def maintenance_create(request):
         log_event('rental.maintenance.created', category=AuditEvent.Category.SYSTEM, message='租客已建立報修單', request=request, metadata={'request_id': maintenance.id})
         messages.success(request, '報修單已送出。')
         return redirect('rental:maintenance_list')
-    return render(request, 'rental/form.html', {'form': form, 'title': '建立報修'})
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': '建立報修', 'back_url': reverse('rental:maintenance_list'),
+    })
 
 
 @login_required

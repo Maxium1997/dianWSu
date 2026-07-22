@@ -66,3 +66,29 @@ class RentalLoginTests(TestCase):
             'https://dotwebsite.cc/accounts/line/login/?process=login&next=/accounts/line/rental-complete/',
             fetch_redirect_response=False,
         )
+
+
+class RentalManagementEditTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user('manager', password='test-password')
+        self.property = Property.objects.create(name='原始名稱', owner=self.owner, address='原始地址')
+        self.unit = Unit.objects.create(property=self.property, number='101')
+        self.client.force_login(self.owner)
+
+    def test_manager_can_edit_property_and_unit(self):
+        property_response = self.client.post(
+            reverse('rental:property_edit', args=[self.property.id]),
+            {'name': '新名稱', 'address': '新地址', 'description': '更新說明'},
+        )
+        self.assertRedirects(property_response, reverse('rental:property_detail', args=[self.property.id]))
+        self.property.refresh_from_db()
+        self.assertEqual(self.property.name, '新名稱')
+        self.assertEqual(self.property.address, '新地址')
+
+        unit_response = self.client.post(
+            reverse('rental:unit_edit', args=[self.unit.id]),
+            {'floor': '1F', 'number': '102', 'room_type': '套房', 'area_ping': '', 'status': Unit.Status.AVAILABLE, 'notes': '已整理'},
+        )
+        self.assertRedirects(unit_response, reverse('rental:property_detail', args=[self.property.id]))
+        self.unit.refresh_from_db()
+        self.assertEqual(self.unit.number, '102')
