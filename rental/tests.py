@@ -51,6 +51,11 @@ class RentalBillingTests(TestCase):
 
 
 class RentalLoginTests(TestCase):
+    def test_base_layout_includes_theme_toggle(self):
+        response = self.client.get('/')
+        self.assertContains(response, 'data-theme-toggle')
+        self.assertContains(response, 'dianwsu-theme')
+
     def test_line_login_uses_primary_domain_flow_from_rental_subdomain(self):
         response = self.client.get('/accounts/login/', HTTP_HOST='rental-management.dotwebsite.cc')
         self.assertContains(response, reverse('rental_line_login'))

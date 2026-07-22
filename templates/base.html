@@ -8,6 +8,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (function () {
+            try {
+                const storedTheme = localStorage.getItem("dianwsu-theme");
+                const theme = storedTheme === "light" || storedTheme === "dark"
+                    ? storedTheme
+                    : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                document.documentElement.dataset.theme = theme;
+                document.documentElement.style.colorScheme = theme;
+            } catch (error) {
+                document.documentElement.dataset.theme = "light";
+            }
+        }());
+    </script>
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
@@ -40,6 +54,10 @@
                     <a class="nav-action" href="{% url 'account_login' %}">會員登入</a>
                 {% endif %}
                 {% endblock %}
+                <button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle>
+                    <span aria-hidden="true" data-theme-icon>◐</span>
+                    <span data-theme-label>深色模式</span>
+                </button>
             </nav>
         </header>
 
