@@ -1,6 +1,8 @@
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import F, Q
+from django.db.models import F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,9 +12,9 @@ from django.views.decorators.http import require_POST
 from auditlog.models import AuditEvent
 from auditlog.services import log_event
 
-from .forms import BillTenantPermissionForm, LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
+from .forms import BillTenantPermissionForm, LeaseBillTenantPermissionForm, LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
 from .models import (
-    Announcement, Bill, BillMeterReading, BillPayment, Lease, LeaseDocument, LeaseTenant,
+    Announcement, Bill, BillMeterReading, BillPayment, BillTenantPermission, Lease, LeaseDocument, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, TenantInvitation, TenantProfile,
     Unit, UnitPhoto,
 )
@@ -70,7 +72,13 @@ def dashboard(request):
 
 @login_required
 def property_list(request):
-    return render(request, 'rental/property_list.html', {'properties': _managed_properties(request.user)})
+    properties = _managed_properties(request.user).prefetch_related(
+        Prefetch('units__leases', queryset=Lease.objects.filter(status=Lease.Status.ACTIVE).order_by('-start_date')),
+    )
+    for property_ in properties:
+        for unit in property_.units.all():
+            unit.active_lease = next(iter(unit.leases.all()), None)
+    return render(request, 'rental/property_list.html', {'properties': properties})
 
 
 @login_required
@@ -197,7 +205,60 @@ def lease_billing_settings(request, lease_id):
 def bill_list(request):
     properties = _managed_properties(request.user)
     bills = _accessible_bills(request.user)
+    granted_bill_ids = set(BillTenantPermission.objects.filter(
+        bill__in=bills,
+        tenant__tenant__user=request.user,
+        tenant__status=LeaseTenant.Status.ACTIVE,
+    ).filter(
+        Q(expires_on__isnull=True) | Q(expires_on__gte=timezone.localdate())
+    ).values_list('bill_id', flat=True))
+    for bill in bills:
+        bill.is_historic_fill_grant = bill.id in granted_bill_ids
     return render(request, 'rental/bill_list.html', {'bills': bills, 'properties': properties})
+
+
+def _lease_months(lease):
+    period = date(lease.start_date.year, lease.start_date.month, 1)
+    final_period = date(lease.end_date.year, lease.end_date.month, 1)
+    while period <= final_period:
+        yield period
+        period = date(period.year + 1, 1, 1) if period.month == 12 else date(period.year, period.month + 1, 1)
+
+
+@login_required
+def lease_bill_list(request, lease_id):
+    lease = get_object_or_404(Lease.objects.select_related('unit__property'), pk=lease_id)
+    denied = _manager_or_403(request.user, lease.unit.property)
+    if denied:
+        return denied
+
+    grant_mode = request.GET.get('grant') == '1' or request.method == 'POST'
+    form = LeaseBillTenantPermissionForm(request.POST or None, lease=lease) if grant_mode else None
+    if request.method == 'POST' and form.is_valid():
+        bills = list(form.cleaned_data['bills'])
+        tenant = form.cleaned_data['lease_tenant']
+        form.save(granted_by=request.user)
+        log_event(
+            'rental.bill.tenant_permission_granted', category=AuditEvent.Category.SYSTEM,
+            message='已由租約帳單清單授權租客補填', request=request,
+            metadata={
+                'lease_id': lease.id,
+                'lease_tenant_id': tenant.id,
+                'bill_ids': [bill.id for bill in bills],
+                'expires_on': form.cleaned_data['expires_on'].isoformat() if form.cleaned_data['expires_on'] else None,
+            },
+        )
+        messages.success(request, '已授權租客填補選取的歷史帳單。')
+        return redirect('rental:lease_bill_list', lease_id=lease.id)
+
+    bills_by_period = {bill.period: bill for bill in lease.bills.all()}
+    entries = [{'period': period, 'bill': bills_by_period.get(period)} for period in _lease_months(lease)]
+    return render(request, 'rental/lease_bill_list.html', {
+        'lease': lease,
+        'entries': entries,
+        'grant_mode': grant_mode,
+        'permission_form': form,
+    })
 
 
 @login_required

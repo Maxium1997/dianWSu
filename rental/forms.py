@@ -221,6 +221,29 @@ class BillTenantPermissionForm(forms.Form):
             )
 
 
+class LeaseBillTenantPermissionForm(forms.Form):
+    lease_tenant = forms.ModelChoiceField(label='授權給租客', queryset=LeaseTenant.objects.none())
+    bills = forms.ModelMultipleChoiceField(label='帳單', queryset=Bill.objects.none(), required=True)
+    expires_on = forms.DateField(label='授權到期日（選填）', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+
+    def __init__(self, *args, lease, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lease = lease
+        self.fields['lease_tenant'].queryset = lease.lease_tenants.filter(
+            status=LeaseTenant.Status.ACTIVE,
+        ).select_related('tenant__user')
+        self.fields['bills'].queryset = lease.bills.filter(status=Bill.Status.DRAFT).order_by('period')
+
+    def save(self, *, granted_by):
+        tenant = self.cleaned_data['lease_tenant']
+        for bill in self.cleaned_data['bills']:
+            BillTenantPermission.objects.update_or_create(
+                bill=bill,
+                tenant=tenant,
+                defaults={'expires_on': self.cleaned_data['expires_on'], 'granted_by': granted_by},
+            )
+
+
 class TenantBillForm(forms.Form):
     previous_reading = forms.DecimalField(label='前次／入住初始電表度數', required=False, min_value=0, decimal_places=2)
     current_reading = forms.DecimalField(label='本次電表度數', required=False, min_value=0, decimal_places=2)

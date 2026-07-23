@@ -674,6 +674,70 @@ a {
     gap: 8px;
 }
 
+.lease-bill-list {
+    margin-top: 18px;
+    display: grid;
+    border-top: 1px solid var(--line);
+}
+
+.lease-bill-row {
+    min-height: 62px;
+    padding: 12px 0;
+    display: grid;
+    grid-template-columns: minmax(130px, .8fr) minmax(0, 1.5fr) auto;
+    align-items: center;
+    gap: 14px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--text);
+    background: transparent;
+    font: inherit;
+    text-align: left;
+}
+
+label.lease-bill-row {
+    padding-right: 8px;
+    cursor: pointer;
+}
+
+.lease-bill-row input {
+    position: absolute;
+    opacity: 0;
+}
+
+label.lease-bill-row:has(input) {
+    grid-template-columns: 20px minmax(120px, .8fr) minmax(0, 1.5fr) auto;
+}
+
+.lease-bill-list label.lease-bill-row.is-disabled {
+    grid-template-columns: 20px minmax(120px, .8fr) minmax(0, 1.5fr) auto;
+}
+
+label.lease-bill-row:has(input)::before,
+.selection-placeholder {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: var(--surface-strong);
+}
+
+label.lease-bill-row:has(input:checked)::before {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: inset 0 0 0 3px var(--surface);
+}
+
+.lease-bill-row:not(.is-disabled):hover {
+    background: var(--bg-strong);
+}
+
+.lease-bill-row.is-disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+    opacity: .72;
+}
+
 .item-actions {
     justify-content: end;
 }

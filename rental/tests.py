@@ -168,3 +168,27 @@ class RentalManagementEditTests(TestCase):
         other = LeaseCharge.objects.get(lease=self.lease, charge_type=LeaseCharge.ChargeType.OTHER)
         self.assertEqual(other.name, '網路費')
         self.assertEqual(other.default_amount, Decimal('300'))
+
+    def test_manager_room_workspace_and_lease_bill_permission_flow(self):
+        tenant_user = get_user_model().objects.create_user('historical-tenant', password='test-password')
+        tenant = TenantProfile.objects.create(user=tenant_user)
+        lease_tenant = LeaseTenant.objects.create(
+            lease=self.lease, tenant=tenant, status=LeaseTenant.Status.ACTIVE,
+            billing_access_start_date=date(2026, 6, 1),
+        )
+        historic_bill = Bill.objects.create(lease=self.lease, period=date(2026, 1, 1), due_date=date(2026, 1, 8))
+
+        workspace = self.client.get(reverse('rental:property_list'))
+        self.assertContains(workspace, '查看帳單')
+        self.assertContains(workspace, reverse('rental:lease_bill_list', args=[self.lease.id]))
+
+        bill_list = self.client.get(reverse('rental:lease_bill_list', args=[self.lease.id]))
+        self.assertContains(bill_list, '授權租客填補')
+        self.assertContains(bill_list, '待租客填寫')
+
+        grant = self.client.post(
+            reverse('rental:lease_bill_list', args=[self.lease.id]) + '?grant=1',
+            {'lease_tenant': lease_tenant.id, 'bills': [historic_bill.id], 'expires_on': ''},
+        )
+        self.assertRedirects(grant, reverse('rental:lease_bill_list', args=[self.lease.id]))
+        self.assertTrue(BillTenantPermission.objects.filter(bill=historic_bill, tenant=lease_tenant).exists())

@@ -1,16 +1,32 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}物件管理{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>物件管理</h1><p>建立與管理你具有權限的物件及房間。</p></div><div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div></div>
-<section class="rental-panel">
-    {% if properties %}
-    <div class="simple-grid">
-        {% for property in properties %}
-        <a class="summary-card link-card" href="{% url 'rental:property_detail' property.id %}">
-            <span>{{ property.get_status_display }}</span><strong>{{ property.name }}</strong><small>{{ property.address }}</small>
-        </a>
-        {% endfor %}
-    </div>
-    {% else %}<div class="empty-state"><p>尚未建立物件。</p></div>{% endif %}
-</section>
+<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>管理者工作區</h1><p>所有管理物件與房間。已出租房間可直接查看該租約的月帳單。</p></div><div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div></div>
+{% if properties %}
+    {% for property in properties %}
+    <section class="rental-panel">
+        <div class="panel-heading"><div><h2>{{ property.name }}</h2><span class="muted">{{ property.address }}</span></div><a href="{% url 'rental:property_detail' property.id %}">物件詳情</a></div>
+        {% if property.units.all %}
+        <div class="data-list">
+            {% for unit in property.units.all %}
+            <div>
+                <span>{{ unit.floor|default:"未設定樓層" }}</span>
+                <strong>{{ unit.number }}{% if unit.room_type %} · {{ unit.room_type }}{% endif %}</strong>
+                <em class="item-actions">
+                    <a class="status" href="{% url 'rental:unit_edit' unit.id %}">編輯房間</a>
+                    {% if unit.active_lease %}
+                    <a class="status status-{{ unit.status }}" href="{% url 'rental:lease_bill_list' unit.active_lease.id %}">查看帳單</a>
+                    {% else %}
+                    <a class="status status-{{ unit.status }}" href="{% url 'rental:lease_create' unit.id %}">建立租約</a>
+                    {% endif %}
+                </em>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}<div class="empty-state"><p>尚未建立房間。</p></div>{% endif %}
+    </section>
+    {% endfor %}
+{% else %}
+<section class="rental-panel"><div class="empty-state"><p>尚未建立物件。</p><a class="button" href="{% url 'rental:property_create' %}">建立第一個物件</a></div></section>
+{% endif %}
 {% endblock %}

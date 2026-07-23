@@ -1,0 +1,54 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}{{ lease.unit.property.name }} {{ lease.unit.number }}帳單{% endblock %}
+{% block rental_content %}
+<div class="rental-heading">
+    <div><p class="eyebrow">Lease billing</p><h1>{{ lease.unit.property.name }} · {{ lease.unit.number }}</h1><p>租約期間：{{ lease.start_date|date:"Y/m/d" }} 至 {{ lease.end_date|date:"Y/m/d" }}</p></div>
+    <div class="button-row">
+        <a class="button button-secondary" href="{% url 'rental:property_list' %}">返回管理者工作區</a>
+        {% if grant_mode %}<a class="button button-secondary" href="{% url 'rental:lease_bill_list' lease.id %}">取消授權</a>{% else %}<a class="button" href="{% url 'rental:lease_bill_list' lease.id %}?grant=1">授權租客填補</a>{% endif %}
+    </div>
+</div>
+
+{% if grant_mode %}
+<section class="rental-panel">
+    <h2>授權租客填補歷史帳單</h2>
+    <p class="muted">選擇租客後，僅「待租客填寫」的未繳帳單可選取；已提交、待付款及已結案帳單保持不可修改。</p>
+    {% if permission_form.lease_tenant.field.queryset %}
+    <form method="post" class="rental-form">
+        {% csrf_token %}
+        <label>{{ permission_form.lease_tenant.label }}{{ permission_form.lease_tenant }}{% for error in permission_form.lease_tenant.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>
+        <label>{{ permission_form.expires_on.label }}{{ permission_form.expires_on }}{% if permission_form.expires_on.help_text %}<small>{{ permission_form.expires_on.help_text }}</small>{% endif %}</label>
+        <div class="lease-bill-list">
+            {% for entry in entries %}
+            <label class="lease-bill-row {% if not entry.bill or entry.bill.status != 'draft' %}is-disabled{% endif %}">
+                {% if entry.bill and entry.bill.status == 'draft' %}<input type="checkbox" name="bills" value="{{ entry.bill.id }}">{% else %}<span class="selection-placeholder" aria-hidden="true"></span>{% endif %}
+                <span>{{ entry.period|date:"Y 年 m 月" }}</span>
+                <strong>{% if entry.bill %}NT$ {{ entry.bill.total_amount }}{% else %}尚未產生帳單{% endif %}</strong>
+                <em class="status {% if entry.bill %}status-{{ entry.bill.status }}{% endif %}">{% if entry.bill %}{{ entry.bill.get_status_display }}{% else %}—{% endif %}</em>
+            </label>
+            {% endfor %}
+        </div>
+        {% for error in permission_form.bills.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        <button class="button" type="submit">確認授權</button>
+    </form>
+    {% else %}<p class="muted">此租約目前沒有可授權的有效租客。</p>{% endif %}
+</section>
+{% else %}
+<section class="rental-panel">
+    <div class="panel-heading"><h2>每月帳單</h2><span>{{ entries|length }} 個月</span></div>
+    <div class="lease-bill-list">
+        {% for entry in entries %}
+        {% if entry.bill and entry.bill.status == 'paid' %}
+        <a class="lease-bill-row" href="{% url 'rental:bill_detail' entry.bill.id %}">
+            <span>{{ entry.period|date:"Y 年 m 月" }}</span><strong>NT$ {{ entry.bill.total_amount }}</strong><em class="status status-{{ entry.bill.status }}">{{ entry.bill.get_status_display }}</em>
+        </a>
+        {% else %}
+        <div class="lease-bill-row is-disabled">
+            <span>{{ entry.period|date:"Y 年 m 月" }}</span><strong>{% if entry.bill %}NT$ {{ entry.bill.total_amount }}{% else %}尚未產生帳單{% endif %}</strong><em class="status {% if entry.bill %}status-{{ entry.bill.status }}{% endif %}">{% if entry.bill %}{{ entry.bill.get_status_display }}{% else %}—{% endif %}</em>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}
