@@ -188,7 +188,7 @@ class RentalManagementEditTests(TestCase):
     def test_manager_room_workspace_and_lease_bill_permission_flow(self):
         tenant_user = get_user_model().objects.create_user('historical-tenant', password='test-password')
         tenant = TenantProfile.objects.create(user=tenant_user)
-        lease_tenant = LeaseTenant.objects.create(
+        LeaseTenant.objects.create(
             lease=self.lease, tenant=tenant, status=LeaseTenant.Status.ACTIVE,
             billing_access_start_date=date(2026, 6, 1),
         )
@@ -204,7 +204,10 @@ class RentalManagementEditTests(TestCase):
 
         grant = self.client.post(
             reverse('rental:lease_bill_list', args=[self.lease.id]) + '?grant=1',
-            {'lease_tenant': lease_tenant.id, 'bills': [historic_bill.id], 'expires_on': ''},
+            {'bills': [historic_bill.id]},
         )
         self.assertRedirects(grant, reverse('rental:lease_bill_list', args=[self.lease.id]))
-        self.assertTrue(BillTenantPermission.objects.filter(bill=historic_bill, tenant=lease_tenant).exists())
+        historic_bill.refresh_from_db()
+        self.assertTrue(historic_bill.tenant_fill_enabled)
+        self.assertEqual(historic_bill.status, Bill.Status.DRAFT)
+        self.assertTrue(can_access_bill(tenant_user, historic_bill))

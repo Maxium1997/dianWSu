@@ -51,7 +51,8 @@ def _accessible_bills(user):
         tenant_permissions__tenant__status=LeaseTenant.Status.ACTIVE,
     ) & (Q(tenant_permissions__expires_on__isnull=True) | Q(tenant_permissions__expires_on__gte=timezone.localdate()))
     return Bill.objects.filter(
-        Q(lease__unit__property__in=managed_properties) | tenant_access | granted_access
+        Q(lease__unit__property__in=managed_properties) | tenant_access | granted_access |
+        Q(tenant_fill_enabled=True, lease__lease_tenants__tenant__user=user, lease__lease_tenants__status=LeaseTenant.Status.ACTIVE)
     ).select_related('lease__unit__property').distinct()
 
 
@@ -176,7 +177,7 @@ def unit_edit(request, unit_id):
         return redirect('rental:property_detail', property_id=unit.property_id)
     return render(request, 'rental/form.html', {
         'form': form, 'title': f'編輯 {unit.property.name} {unit.number}',
-        'back_url': reverse('rental:property_detail', args=[unit.property_id]),
+        'back_history': True,
     })
 
 
@@ -204,7 +205,7 @@ def lease_create(request, unit_id):
             return redirect('rental:invitation_create')
     return render(request, 'rental/form.html', {
         'form': form, 'title': f'建立 {unit.property.name} {unit.number} 的租約',
-        'back_url': reverse('rental:property_detail', args=[unit.property_id]),
+        'back_history': True,
     })
 
 
@@ -243,7 +244,7 @@ def bill_list(request):
         Q(expires_on__isnull=True) | Q(expires_on__gte=timezone.localdate())
     ).values_list('bill_id', flat=True))
     for bill in bills:
-        bill.is_historic_fill_grant = bill.id in granted_bill_ids
+        bill.is_historic_fill_grant = bill.id in granted_bill_ids or bill.tenant_fill_enabled
     return render(request, 'rental/bill_list.html', {'bills': bills, 'properties': properties})
 
 
@@ -266,19 +267,22 @@ def lease_bill_list(request, lease_id):
     form = LeaseBillTenantPermissionForm(request.POST or None, lease=lease) if grant_mode else None
     if request.method == 'POST' and form.is_valid():
         bills = list(form.cleaned_data['bills'])
-        tenant = form.cleaned_data['lease_tenant']
-        form.save(granted_by=request.user)
+        for bill in bills:
+            bill.tenant_fill_enabled = True
+            bill.status = Bill.Status.DRAFT
+            bill.submitted_at = None
+            bill.confirmed_at = None
+            bill.save(update_fields=['tenant_fill_enabled', 'status', 'submitted_at', 'confirmed_at', 'updated_at'])
+            snapshot_bill(bill, 'manager_authorized_tenant_fill', actor=request.user, request=request)
         log_event(
-            'rental.bill.tenant_permission_granted', category=AuditEvent.Category.SYSTEM,
-            message='已由租約帳單清單授權租客補填', request=request,
+            'rental.bill.lease_fill_authorized', category=AuditEvent.Category.SYSTEM,
+            message='已授權租約租客填補未繳帳單', request=request,
             metadata={
                 'lease_id': lease.id,
-                'lease_tenant_id': tenant.id,
                 'bill_ids': [bill.id for bill in bills],
-                'expires_on': form.cleaned_data['expires_on'].isoformat() if form.cleaned_data['expires_on'] else None,
             },
         )
-        messages.success(request, '已授權租客填補選取的歷史帳單。')
+        messages.success(request, '已將選取帳單開放給此租約的租客填補。')
         return redirect('rental:lease_bill_list', lease_id=lease.id)
 
     bills_by_period = {bill.period: bill for bill in lease.bills.all()}

@@ -781,6 +781,37 @@ label.lease-bill-row:has(input:checked)::before {
     justify-content: end;
 }
 
+.item-actions .status {
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.item-actions .status:hover,
+.item-actions .status:focus-visible {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--surface-glass-strong);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.lease-bill-row.is-selectable {
+    width: 100%;
+    cursor: pointer;
+    transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.lease-bill-row.is-selectable:hover,
+.lease-bill-row.is-selectable:focus-visible {
+    background: var(--bg-strong);
+    box-shadow: inset 3px 0 0 var(--line-strong);
+    outline: none;
+}
+
+.lease-bill-row.is-selectable.is-selected {
+    background: var(--surface-glass-strong);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .rental-form {
     margin-top: 18px;
     display: grid;

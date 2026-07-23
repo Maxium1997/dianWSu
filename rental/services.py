@@ -25,7 +25,7 @@ def is_lease_tenant(user, lease):
 
 
 def can_access_bill(user, bill):
-    """Bill access starts on a tenant's billing-effective date unless explicitly granted."""
+    """Bill access starts on a tenant's billing-effective date or a lease-level fill authorization."""
     if can_manage_lease(user, bill.lease):
         return True
     default_access = LeaseTenant.objects.filter(
@@ -35,6 +35,8 @@ def can_access_bill(user, bill):
         billing_access_start_date__lte=bill.period,
     ).exists()
     if default_access:
+        return True
+    if bill.tenant_fill_enabled and is_lease_tenant(user, bill.lease):
         return True
     return BillTenantPermission.objects.filter(
         bill=bill,
@@ -55,6 +57,8 @@ def can_fill_bill(user, bill):
         billing_access_start_date__lte=bill.period,
     ).exists()
     if default_access:
+        return True
+    if bill.tenant_fill_enabled and is_lease_tenant(user, bill.lease):
         return True
     return BillTenantPermission.objects.filter(
         bill=bill,

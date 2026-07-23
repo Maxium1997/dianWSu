@@ -295,6 +295,7 @@ class Bill(models.Model):
     period = models.DateField('帳單月份')
     due_date = models.DateField('付款期限')
     status = models.CharField('帳單狀態', max_length=24, choices=Status.choices, default=Status.DRAFT)
+    tenant_fill_enabled = models.BooleanField('允許租約租客補填', default=False)
     created_at = models.DateTimeField('建立時間', auto_now_add=True)
     updated_at = models.DateTimeField('更新時間', auto_now=True)
     submitted_at = models.DateTimeField('提交時間', null=True, blank=True)

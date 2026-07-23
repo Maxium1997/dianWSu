@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}{{ title }}{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Rental management</p><h1>{{ title }}</h1></div>{% if back_url %}<a class="button button-secondary" href="{{ back_url }}">返回</a>{% endif %}</div>
+<div class="rental-heading"><div><p class="eyebrow">Rental management</p><h1>{{ title }}</h1></div>{% if back_history %}<button class="button button-secondary" type="button" onclick="window.history.back()">返回</button>{% elif back_url %}<a class="button button-secondary" href="{{ back_url }}">返回</a>{% endif %}</div>
 <section class="rental-panel form-panel">
 {% if form_intro %}<p class="muted">{{ form_intro }}</p>{% endif %}
 <form method="post" enctype="multipart/form-data" class="rental-form">
