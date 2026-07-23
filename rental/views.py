@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from auditlog.models import AuditEvent
 from auditlog.services import log_event
 
-from .forms import BillTenantPermissionForm, LeaseBillTenantPermissionForm, LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
+from .forms import BillTenantPermissionForm, LeaseBillTenantPermissionForm, LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, ManagerBillForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
 from .models import (
     Announcement, Bill, BillMeterReading, BillPayment, BillTenantPermission, Lease, LeaseDocument, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, TenantInvitation, TenantProfile,
@@ -21,7 +21,8 @@ from .models import (
 )
 from .services import (
     can_access_bill, can_fill_bill, can_manage_lease, can_manage_property, confirm_bill, confirm_payment,
-    create_bill, is_lease_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
+    create_bill, is_lease_tenant, return_bill_to_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
+    void_bill,
 )
 
 
@@ -306,12 +307,16 @@ def bill_detail(request, bill_id):
         return denied
     is_manager = can_manage_lease(request.user, bill.lease)
     is_tenant = is_lease_tenant(request.user, bill.lease) and can_access_bill(request.user, bill)
+    manager_can_edit = is_manager and bill.status == Bill.Status.SUBMITTED
+    manager_can_void = is_manager and bill.status not in {Bill.Status.PAID, Bill.Status.VOID}
     return render(request, 'rental/bill_detail.html', {
         'bill': bill,
         'is_manager': is_manager,
         'is_tenant': is_tenant,
         'tenant_form': TenantBillForm(bill=bill) if can_fill_bill(request.user, bill) else None,
+        'manager_form': ManagerBillForm(bill=bill) if manager_can_edit else None,
         'payment_form': PaymentForm() if is_tenant and bill.status == Bill.Status.CONFIRMED else None,
+        'manager_can_void': manager_can_void,
     })
 
 
@@ -339,6 +344,52 @@ def bill_confirm(request, bill_id):
         return HttpResponseForbidden('此帳單目前不可確認。')
     confirm_bill(bill, actor=request.user, request=request, note=request.POST.get('note', ''))
     messages.success(request, '帳單已確認，租客現在可以付款。')
+    return redirect('rental:bill_detail', bill_id=bill.id)
+
+
+@login_required
+@require_POST
+def bill_manager_edit(request, bill_id):
+    bill = get_object_or_404(Bill.objects.select_related('lease__unit__property').prefetch_related('items'), pk=bill_id)
+    if not can_manage_lease(request.user, bill.lease) or bill.status != Bill.Status.SUBMITTED:
+        return HttpResponseForbidden('此帳單目前不可由管理者編輯。')
+    form = ManagerBillForm(request.POST, bill=bill)
+    if form.is_valid():
+        form.save()
+        snapshot_bill(bill, 'manager_edited', actor=request.user, request=request, note=form.cleaned_data['note'])
+        messages.success(request, '帳單已更新，請確認後再開放付款。')
+    else:
+        messages.error(request, '帳單資料有誤，請檢查後再儲存。')
+    return redirect('rental:bill_detail', bill_id=bill.id)
+
+
+@login_required
+@require_POST
+def bill_return(request, bill_id):
+    bill = get_object_or_404(Bill.objects.select_related('lease__unit__property'), pk=bill_id)
+    reason = request.POST.get('reason', '').strip()
+    if not can_manage_lease(request.user, bill.lease) or bill.status != Bill.Status.SUBMITTED:
+        return HttpResponseForbidden('此帳單目前不可退回。')
+    if not reason:
+        messages.error(request, '請填寫退回原因。')
+    else:
+        return_bill_to_tenant(bill, actor=request.user, request=request, reason=reason)
+        messages.success(request, '帳單已退回給租客重新填寫。')
+    return redirect('rental:bill_detail', bill_id=bill.id)
+
+
+@login_required
+@require_POST
+def bill_void(request, bill_id):
+    bill = get_object_or_404(Bill.objects.select_related('lease__unit__property'), pk=bill_id)
+    reason = request.POST.get('reason', '').strip()
+    if not can_manage_lease(request.user, bill.lease) or bill.status in {Bill.Status.PAID, Bill.Status.VOID}:
+        return HttpResponseForbidden('此帳單目前不可作廢。')
+    if not reason:
+        messages.error(request, '請填寫作廢原因。')
+    else:
+        void_bill(bill, actor=request.user, request=request, reason=reason)
+        messages.success(request, '帳單已作廢。')
     return redirect('rental:bill_detail', bill_id=bill.id)
 
 

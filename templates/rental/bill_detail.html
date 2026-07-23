@@ -18,8 +18,18 @@
 </section>
 {% endif %}
 
-{% if is_manager and bill.status == 'submitted' %}
-<section class="rental-panel"><h2>管理者確認</h2><form method="post" action="{% url 'rental:bill_confirm' bill.id %}" class="inline-form">{% csrf_token %}<input name="note" placeholder="確認備註（選填）"><button class="button" type="submit">確認帳單</button></form></section>
+{% if manager_form %}
+<section class="rental-panel">
+<h2>管理者審核與調整</h2><p class="muted">此階段僅管理者可調整帳單。修改、退回與確認都會保留在帳單快照中。</p>
+<form method="post" action="{% url 'rental:bill_manager_edit' bill.id %}" class="rental-form">
+{% csrf_token %}{% for field in manager_form %}<label>{{ field.label }}{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>{% endfor %}
+<button class="button button-secondary" type="submit">儲存調整</button></form>
+<div class="rental-form">
+<form method="post" action="{% url 'rental:bill_confirm' bill.id %}" class="inline-form">{% csrf_token %}<input name="note" placeholder="確認備註（選填）"><button class="button" type="submit">確認帳單</button></form>
+<form method="post" action="{% url 'rental:bill_return' bill.id %}" class="inline-form">{% csrf_token %}<input name="reason" required placeholder="退回原因"><button class="button button-secondary" type="submit">退回請租客重新填寫</button></form>
+<form method="post" action="{% url 'rental:bill_void' bill.id %}" class="inline-form">{% csrf_token %}<input name="reason" required placeholder="作廢原因"><button class="button button-danger" type="submit">作廢帳單</button></form>
+</div>
+</section>
 {% endif %}
 
 {% if payment_form %}
@@ -28,6 +38,10 @@
 
 {% if is_manager and bill.status == 'payment_submitted' %}
 <section class="rental-panel"><h2>確認收款</h2><p class="muted">租客已提交付款資料。確認後帳單將結案。</p><form method="post" action="{% url 'rental:bill_payment_confirm' bill.id %}" class="inline-form">{% csrf_token %}<input name="note" placeholder="收款確認備註（選填）"><button class="button" type="submit">確認收款並結案</button></form></section>
+{% endif %}
+
+{% if manager_can_void and not manager_form %}
+<section class="rental-panel"><h2>作廢帳單</h2><p class="muted">作廢後帳單僅可檢視，無法重新啟用。</p><form method="post" action="{% url 'rental:bill_void' bill.id %}" class="inline-form">{% csrf_token %}<input name="reason" required placeholder="作廢原因"><button class="button button-danger" type="submit">作廢帳單</button></form></section>
 {% endif %}
 
 <section class="rental-panel"><div class="panel-heading"><h2>帳單歷程與快照</h2><span>{{ bill.snapshots.count }} 筆</span></div><div class="timeline">{% for snapshot in bill.snapshots.all %}<article><strong>{{ snapshot.event_type }}</strong><span>{{ snapshot.created_at|date:"Y/m/d H:i" }}{% if snapshot.actor %} · {{ snapshot.actor.get_username }}{% endif %}</span>{% if snapshot.note %}<p>{{ snapshot.note }}</p>{% endif %}</article>{% empty %}<p class="muted">尚無快照。</p>{% endfor %}</div></section>

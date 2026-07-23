@@ -286,6 +286,7 @@ class Bill(models.Model):
     class Status(models.TextChoices):
         DRAFT = 'draft', '待租客填寫'
         SUBMITTED = 'submitted', '待管理者確認'
+        RETURNED = 'returned', '退回待租客填寫'
         CONFIRMED = 'confirmed', '待租客付款'
         PAYMENT_SUBMITTED = 'payment_submitted', '待確認收款'
         PAID = 'paid', '已結案'

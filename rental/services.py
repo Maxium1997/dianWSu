@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -48,7 +49,7 @@ def can_access_bill(user, bill):
 
 
 def can_fill_bill(user, bill):
-    if bill.status != Bill.Status.DRAFT:
+    if bill.status not in {Bill.Status.DRAFT, Bill.Status.RETURNED}:
         return False
     default_access = LeaseTenant.objects.filter(
         lease=bill.lease,
@@ -188,6 +189,8 @@ def generate_current_bills(*, actor=None, request=None):
 
 @transaction.atomic
 def submit_bill_for_review(bill, *, actor, request=None, note=''):
+    if bill.status not in {Bill.Status.DRAFT, Bill.Status.RETURNED}:
+        raise ValidationError('只有待租客填寫或退回待租客填寫的帳單可以提交。')
     bill.status = Bill.Status.SUBMITTED
     bill.submitted_at = timezone.now()
     bill.save(update_fields=['status', 'submitted_at', 'updated_at'])
@@ -196,6 +199,8 @@ def submit_bill_for_review(bill, *, actor, request=None, note=''):
 
 @transaction.atomic
 def confirm_bill(bill, *, actor, request=None, note=''):
+    if bill.status != Bill.Status.SUBMITTED:
+        raise ValidationError('只有待管理者確認的帳單可以確認。')
     bill.status = Bill.Status.CONFIRMED
     bill.confirmed_at = timezone.now()
     bill.save(update_fields=['status', 'confirmed_at', 'updated_at'])
@@ -204,6 +209,8 @@ def confirm_bill(bill, *, actor, request=None, note=''):
 
 @transaction.atomic
 def submit_payment(bill, *, actor, method, receipt=None, note='', request=None):
+    if bill.status != Bill.Status.CONFIRMED:
+        raise ValidationError('只有待租客付款的帳單可以提交付款資料。')
     payment, _ = BillPayment.objects.update_or_create(
         bill=bill,
         defaults={'method': method, 'receipt': receipt, 'submitted_by': actor, 'note': note},
@@ -217,7 +224,27 @@ def submit_payment(bill, *, actor, method, receipt=None, note='', request=None):
 
 
 @transaction.atomic
+def return_bill_to_tenant(bill, *, actor, request=None, reason):
+    if bill.status != Bill.Status.SUBMITTED:
+        raise ValidationError('只有待管理者確認的帳單可以退回。')
+    bill.status = Bill.Status.RETURNED
+    bill.save(update_fields=['status', 'updated_at'])
+    snapshot_bill(bill, 'manager_returned', actor=actor, request=request, note=reason)
+
+
+@transaction.atomic
+def void_bill(bill, *, actor, request=None, reason):
+    if bill.status in {Bill.Status.PAID, Bill.Status.VOID}:
+        raise ValidationError('已結案或已作廢的帳單不可作廢。')
+    bill.status = Bill.Status.VOID
+    bill.save(update_fields=['status', 'updated_at'])
+    snapshot_bill(bill, 'manager_voided', actor=actor, request=request, note=reason)
+
+
+@transaction.atomic
 def confirm_payment(bill, *, actor, request=None, note=''):
+    if bill.status != Bill.Status.PAYMENT_SUBMITTED:
+        raise ValidationError('只有待確認收款的帳單可以結案。')
     payment = bill.payment
     payment.confirmed_by = actor
     payment.confirmed_at = timezone.now()

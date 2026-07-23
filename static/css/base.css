@@ -666,6 +666,19 @@ a {
     background: var(--bg-strong);
 }
 
+.button-danger {
+    border-style: dashed;
+    border-color: var(--text);
+    color: var(--text);
+    background: transparent;
+}
+
+.button-danger:hover,
+.button-danger:focus-visible {
+    color: var(--on-accent);
+    background: var(--text);
+}
+
 .button-row,
 .item-actions {
     display: inline-flex;

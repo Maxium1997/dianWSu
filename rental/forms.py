@@ -299,6 +299,26 @@ class TenantBillForm(forms.Form):
                 electricity.save(update_fields=['amount'])
 
 
+class ManagerBillForm(forms.Form):
+    """A manager can adjust every bill line while the bill is under review."""
+
+    note = forms.CharField(label='修改備註', required=False, widget=forms.Textarea(attrs={'rows': 3}))
+
+    def __init__(self, *args, bill, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bill = bill
+        self.items = list(bill.items.order_by('sort_order', 'id'))
+        for item in self.items:
+            self.fields[f'item_{item.id}'] = forms.DecimalField(
+                label=item.name, min_value=0, decimal_places=2, initial=item.amount,
+            )
+
+    def save(self):
+        for item in self.items:
+            item.amount = self.cleaned_data[f'item_{item.id}']
+            item.save(update_fields=['amount'])
+
+
 class PaymentForm(forms.Form):
     method = forms.ChoiceField(label='付款方式', choices=BillPayment.Method.choices)
     receipt = forms.FileField(label='匯款憑證', required=False)

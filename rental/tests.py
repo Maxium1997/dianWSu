@@ -124,6 +124,63 @@ class RentalLoginTests(TestCase):
         )
 
 
+class RentalBillWorkflowPermissionTests(TestCase):
+    def setUp(self):
+        self.manager = get_user_model().objects.create_user('workflow-manager', password='test-password')
+        self.tenant_user = get_user_model().objects.create_user('workflow-tenant', password='test-password')
+        property_ = Property.objects.create(name='流程測試物件', owner=self.manager, address='測試地址')
+        unit = Unit.objects.create(property=property_, number='201')
+        self.lease = Lease.objects.create(
+            unit=unit, start_date=date(2026, 1, 1), end_date=date(2026, 12, 31),
+            monthly_rent=Decimal('12000'), deposit=Decimal('24000'), status=Lease.Status.ACTIVE,
+        )
+        profile = TenantProfile.objects.create(user=self.tenant_user)
+        LeaseTenant.objects.create(
+            lease=self.lease, tenant=profile, status=LeaseTenant.Status.ACTIVE,
+            billing_access_start_date=date(2026, 1, 1),
+        )
+        self.bill, _ = create_bill(self.lease, date(2026, 6, 1), actor=self.manager)
+
+    def _manager_edit_data(self):
+        data = {f'item_{item.id}': str(item.amount) for item in self.bill.items.all()}
+        data['note'] = '管理者核對後調整'
+        return data
+
+    def test_bill_actions_are_locked_by_role_and_status_on_both_sides(self):
+        self.client.force_login(self.manager)
+        draft_edit = self.client.post(reverse('rental:bill_manager_edit', args=[self.bill.id]), self._manager_edit_data())
+        self.assertEqual(draft_edit.status_code, 403)
+
+        self.bill.status = Bill.Status.SUBMITTED
+        self.bill.save(update_fields=['status'])
+        self.client.force_login(self.tenant_user)
+        tenant_detail = self.client.get(reverse('rental:bill_detail', args=[self.bill.id]))
+        self.assertNotContains(tenant_detail, '管理者審核與調整')
+        tenant_edit = self.client.post(reverse('rental:bill_manager_edit', args=[self.bill.id]), self._manager_edit_data())
+        self.assertEqual(tenant_edit.status_code, 403)
+
+        self.client.force_login(self.manager)
+        manager_edit = self.client.post(reverse('rental:bill_manager_edit', args=[self.bill.id]), self._manager_edit_data())
+        self.assertRedirects(manager_edit, reverse('rental:bill_detail', args=[self.bill.id]))
+        self.assertTrue(self.bill.snapshots.filter(event_type='manager_edited').exists())
+
+        returned = self.client.post(reverse('rental:bill_return', args=[self.bill.id]), {'reason': '請補充電表照片說明'})
+        self.assertRedirects(returned, reverse('rental:bill_detail', args=[self.bill.id]))
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.status, Bill.Status.RETURNED)
+        self.assertTrue(can_fill_bill(self.tenant_user, self.bill))
+        self.assertEqual(
+            self.client.post(reverse('rental:bill_submit', args=[self.bill.id]), {}).status_code,
+            403,
+        )
+
+        voided = self.client.post(reverse('rental:bill_void', args=[self.bill.id]), {'reason': '租約已取消'})
+        self.assertRedirects(voided, reverse('rental:bill_detail', args=[self.bill.id]))
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.status, Bill.Status.VOID)
+        self.assertEqual(self.client.post(reverse('rental:bill_void', args=[self.bill.id]), {'reason': '再次作廢'}).status_code, 403)
+
+
 class RentalManagementEditTests(TestCase):
     def setUp(self):
         self.owner = get_user_model().objects.create_user('manager', password='test-password')
