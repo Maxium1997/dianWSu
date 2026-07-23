@@ -738,6 +738,45 @@ label.lease-bill-row:has(input:checked)::before {
     opacity: .72;
 }
 
+.property-facts {
+    margin: 18px 0 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.property-facts div {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface-strong);
+}
+
+.property-facts dt {
+    color: var(--muted);
+    font-size: .8rem;
+}
+
+.property-facts dd {
+    margin: 7px 0 0;
+    line-height: 1.6;
+}
+
+.unit-state {
+    width: fit-content;
+    padding: 4px 9px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: .84rem;
+    font-style: normal;
+    white-space: nowrap;
+}
+
+.unit-state-available { color: #166534 !important; }
+.unit-state-occupied { color: #525252 !important; }
+.unit-state-maintenance { color: #a16207 !important; }
+.unit-state-inactive { color: #b91c1c !important; }
+
 .item-actions {
     justify-content: end;
 }
@@ -938,6 +977,10 @@ label.lease-bill-row:has(input:checked)::before {
     }
 
     .simple-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .property-facts {
         grid-template-columns: 1fr;
     }
 

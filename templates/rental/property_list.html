@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}物件管理{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>管理者工作區</h1><p>所有管理物件與房間。已出租房間可直接查看該租約的月帳單。</p></div><div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div></div>
+<div class="rental-heading"><div><p class="eyebrow">Properties</p><h1>管理者工作區</h1><p>所有管理物件與房間；租約重疊會由系統在儲存前阻擋。</p></div><div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:property_create' %}">新增物件</a></div></div>
 {% if properties %}
     {% for property in properties %}
     <section class="rental-panel">
@@ -14,10 +14,9 @@
                 <strong>{{ unit.number }}{% if unit.room_type %} · {{ unit.room_type }}{% endif %}</strong>
                 <em class="item-actions">
                     <a class="status" href="{% url 'rental:unit_edit' unit.id %}">編輯房間</a>
+                    <a class="status" href="{% url 'rental:lease_create' unit.id %}">建立租約</a>
                     {% if unit.active_lease %}
-                    <a class="status status-{{ unit.status }}" href="{% url 'rental:lease_bill_list' unit.active_lease.id %}">查看帳單</a>
-                    {% else %}
-                    <a class="status status-{{ unit.status }}" href="{% url 'rental:lease_create' unit.id %}">建立租約</a>
+                    <a class="status status-{{ unit.display_status }}" href="{% url 'rental:lease_bill_list' unit.active_lease.id %}">查看帳單</a>
                     {% endif %}
                 </em>
             </div>

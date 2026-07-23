@@ -180,6 +180,14 @@ class Lease(models.Model):
     def clean(self):
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError('租約到期日不可早於起租日。')
+        if self.unit_id and self.start_date and self.end_date:
+            overlap = Lease.objects.filter(
+                unit_id=self.unit_id,
+                start_date__lte=self.end_date,
+                end_date__gte=self.start_date,
+            ).exclude(pk=self.pk).exclude(status__in=[self.Status.ENDED, self.Status.TERMINATED])
+            if overlap.exists():
+                raise ValidationError('此房間已有期間重疊的有效或草稿租約，請調整租約日期。')
 
     def due_date_for(self, period):
         last_day = calendar.monthrange(period.year, period.month)[1]

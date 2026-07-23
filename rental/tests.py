@@ -148,6 +148,22 @@ class RentalManagementEditTests(TestCase):
         self.unit.refresh_from_db()
         self.assertEqual(self.unit.number, '102')
 
+        unit_edit = self.client.get(reverse('rental:unit_edit', args=[self.unit.id]))
+        self.assertNotContains(unit_edit, '出租狀態')
+
+    def test_overlapping_lease_is_rejected_by_the_server(self):
+        response = self.client.post(
+            reverse('rental:lease_create', args=[self.unit.id]),
+            {
+                'start_date': '2026-06-01', 'end_date': '2026-12-31',
+                'monthly_rent': '10000', 'deposit': '20000', 'due_day': '5',
+                'status': Lease.Status.ACTIVE,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '期間重疊')
+        self.assertEqual(Lease.objects.filter(unit=self.unit).count(), 1)
+
     def test_manager_can_configure_lease_electricity_and_recurring_fees(self):
         response = self.client.post(
             reverse('rental:lease_billing_settings', args=[self.lease.id]),

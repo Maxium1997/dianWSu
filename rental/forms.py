@@ -22,7 +22,7 @@ class PropertyForm(forms.ModelForm):
 class UnitForm(forms.ModelForm):
     class Meta:
         model = Unit
-        fields = ['floor', 'number', 'room_type', 'area_ping', 'status', 'notes']
+        fields = ['floor', 'number', 'room_type', 'area_ping', 'notes']
         widgets = {'notes': forms.Textarea(attrs={'rows': 3})}
 
 

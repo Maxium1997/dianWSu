@@ -2,6 +2,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -54,6 +55,19 @@ def _accessible_bills(user):
     ).select_related('lease__unit__property').distinct()
 
 
+def _apply_unit_display_state(units):
+    """Rental state is derived from active leases; operational states remain read-only here."""
+    for unit in units:
+        unit.active_lease = next(iter(unit.leases.all()), None)
+        if unit.active_lease:
+            unit.display_status = Unit.Status.OCCUPIED
+        elif unit.status in {Unit.Status.MAINTENANCE, Unit.Status.INACTIVE}:
+            unit.display_status = unit.status
+        else:
+            unit.display_status = Unit.Status.AVAILABLE
+        unit.display_status_label = Unit.Status(unit.display_status).label
+
+
 @login_required
 def dashboard(request):
     tenant_leases = Lease.objects.filter(
@@ -72,12 +86,14 @@ def dashboard(request):
 
 @login_required
 def property_list(request):
+    today = timezone.localdate()
     properties = _managed_properties(request.user).prefetch_related(
-        Prefetch('units__leases', queryset=Lease.objects.filter(status=Lease.Status.ACTIVE).order_by('-start_date')),
+        Prefetch('units__leases', queryset=Lease.objects.filter(
+            status=Lease.Status.ACTIVE, start_date__lte=today, end_date__gte=today,
+        ).order_by('-start_date')),
     )
     for property_ in properties:
-        for unit in property_.units.all():
-            unit.active_lease = next(iter(unit.leases.all()), None)
+        _apply_unit_display_state(property_.units.all())
     return render(request, 'rental/property_list.html', {'properties': properties})
 
 
@@ -98,7 +114,16 @@ def property_create(request):
 
 @login_required
 def property_detail(request, property_id):
-    property_ = get_object_or_404(_managed_properties(request.user), pk=property_id)
+    today = timezone.localdate()
+    property_ = get_object_or_404(
+        _managed_properties(request.user).prefetch_related(
+            Prefetch('units__leases', queryset=Lease.objects.filter(
+                status=Lease.Status.ACTIVE, start_date__lte=today, end_date__gte=today,
+            ).order_by('-start_date')),
+        ),
+        pk=property_id,
+    )
+    _apply_unit_display_state(property_.units.all())
     return render(request, 'rental/property_detail.html', {'property': property_})
 
 
@@ -165,13 +190,18 @@ def lease_create(request, unit_id):
     if request.method == 'POST' and form.is_valid():
         lease = form.save(commit=False)
         lease.unit = unit
-        lease.save()
-        if lease.status == Lease.Status.ACTIVE:
-            unit.status = Unit.Status.OCCUPIED
-            unit.save(update_fields=['status'])
-        log_event('rental.lease.created', category=AuditEvent.Category.SYSTEM, message='已建立租約', request=request, metadata={'lease_id': lease.id, 'unit_id': unit.id})
-        messages.success(request, '租約已建立。現在可以建立租客邀請連結。')
-        return redirect('rental:invitation_create')
+        try:
+            lease.full_clean()
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            lease.save()
+            if lease.status == Lease.Status.ACTIVE:
+                unit.status = Unit.Status.OCCUPIED
+                unit.save(update_fields=['status'])
+            log_event('rental.lease.created', category=AuditEvent.Category.SYSTEM, message='已建立租約', request=request, metadata={'lease_id': lease.id, 'unit_id': unit.id})
+            messages.success(request, '租約已建立。現在可以建立租客邀請連結。')
+            return redirect('rental:invitation_create')
     return render(request, 'rental/form.html', {
         'form': form, 'title': f'建立 {unit.property.name} {unit.number} 的租約',
         'back_url': reverse('rental:property_detail', args=[unit.property_id]),
