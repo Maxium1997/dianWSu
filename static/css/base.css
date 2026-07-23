@@ -580,6 +580,16 @@ a {
     outline: none;
 }
 
+.tenant-lease-card.is-current {
+    border-color: #16a34a;
+    box-shadow: inset 3px 0 0 #16a34a;
+}
+
+.tenant-lease-card.is-current .status {
+    color: #166534;
+    border-color: #16a34a;
+}
+
 .summary-card span,
 .summary-card small,
 .muted {

@@ -15,6 +15,7 @@ urlpatterns = [
     path('units/<int:unit_id>/edit/', views.unit_edit, name='unit_edit'),
     path('units/<int:unit_id>/leases/new/', views.lease_create, name='lease_create'),
     path('leases/<int:lease_id>/', views.lease_detail, name='lease_detail'),
+    path('leases/<int:lease_id>/manage/', views.tenant_lease_management, name='tenant_lease_management'),
     path('leases/<int:lease_id>/billing-settings/', views.lease_billing_settings, name='lease_billing_settings'),
     path('leases/<int:lease_id>/bills/', views.lease_bill_list, name='lease_bill_list'),
     path('bills/', views.bill_list, name='bill_list'),

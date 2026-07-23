@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}維修報修{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Maintenance</p><h1>維修報修</h1><p>追蹤房間問題與處理進度。</p></div>{% if tenant_leases %}<a class="button" href="{% url 'rental:maintenance_create' %}">建立報修</a>{% endif %}</div>
+<div class="rental-heading"><div><p class="eyebrow">Maintenance</p><h1>{% if selected_lease %}{{ selected_lease.unit.property.name }} · {{ selected_lease.unit.number }}故障報修{% else %}維修報修{% endif %}</h1><p>追蹤房間問題與處理進度。</p></div><div class="button-row">{% if selected_lease %}<a class="button button-secondary" href="{% url 'rental:tenant_lease_management' selected_lease.id %}">返回租約管理</a>{% endif %}{% if can_create_maintenance %}<a class="button" href="{% url 'rental:maintenance_create' %}{% if selected_lease %}?lease={{ selected_lease.id }}{% endif %}">建立報修</a>{% endif %}</div></div>
 <section class="rental-panel">
 {% if requests %}<div class="data-list">{% for request in requests %}<div><span>{{ request.created_at|date:"Y/m/d" }}</span><strong>{{ request.unit.property.name }} · {{ request.unit.number }} · {{ request.title }}</strong><em class="status status-{{ request.status }}">{{ request.get_status_display }}</em></div>{% endfor %}</div>{% else %}<div class="empty-state"><p>尚無報修紀錄。</p></div>{% endif %}
 </section>

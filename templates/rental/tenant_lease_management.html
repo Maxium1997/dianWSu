@@ -1,0 +1,16 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}租約管理{% endblock %}
+{% block rental_content %}
+<div class="rental-heading">
+    <div><p class="eyebrow">Tenant lease</p><h1>{{ lease.unit.property.name }} · {{ lease.unit.number }}</h1><p>{{ lease.start_date|date:"Y/m/d" }} 至 {{ lease.end_date|date:"Y/m/d" }} · <span class="status status-{{ lease.tenant_display_status }}">{{ lease.tenant_display_status_label }}</span></p></div>
+    <a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a>
+</div>
+
+<section class="rental-panel">
+    <div class="panel-heading"><h2>租約功能</h2><span>租客工作區</span></div>
+    <div class="simple-grid">
+        <a class="summary-card link-card" href="{% url 'rental:bill_list' %}?lease={{ lease.id }}"><span>Billing</span><strong>所有帳單</strong><small>查看、填寫或付款目前與歷史帳單。</small></a>
+        <a class="summary-card link-card" href="{% url 'rental:maintenance_list' %}?lease={{ lease.id }}"><span>Maintenance</span><strong>故障報修</strong><small>查看此房間的報修紀錄與處理進度。</small></a>
+    </div>
+</section>
+{% endblock %}

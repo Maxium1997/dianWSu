@@ -105,6 +105,21 @@ class RentalBillingTests(TestCase):
         self.assertTrue(can_access_bill(self.tenant_user, historic_bill))
         self.assertTrue(can_fill_bill(self.tenant_user, historic_bill))
 
+    def test_tenant_dashboard_links_to_lease_management_and_lease_scoped_tools(self):
+        self.client.force_login(self.tenant_user)
+        dashboard = self.client.get(reverse('rental:dashboard'), HTTP_HOST='rental-management.dotwebsite.cc')
+        self.assertContains(dashboard, '我是租客')
+        self.assertContains(dashboard, reverse('rental:tenant_lease_management', args=[self.lease.id]))
+        self.assertNotContains(dashboard, '我的租客工作區')
+
+        lease_management = self.client.get(reverse('rental:tenant_lease_management', args=[self.lease.id]))
+        self.assertContains(lease_management, '所有帳單')
+        self.assertContains(lease_management, '故障報修')
+        self.assertContains(lease_management, f'?lease={self.lease.id}')
+
+        scoped_bills = self.client.get(f"{reverse('rental:bill_list')}?lease={self.lease.id}")
+        self.assertEqual(scoped_bills.status_code, 200)
+
 
 class RentalLoginTests(TestCase):
     def test_base_layout_includes_theme_toggle(self):

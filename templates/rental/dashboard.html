@@ -14,14 +14,14 @@
 
 {% if has_tenant_role %}
 <section class="rental-panel">
-    <div class="panel-heading"><h2>我的租客工作區</h2><a href="{% url 'rental:bill_list' %}">查看帳單</a></div>
+    <div class="panel-heading"><h2>我是租客</h2><span>{{ tenant_leases|length }} 份租約</span></div>
     <div class="simple-grid">
         {% for lease in tenant_leases %}
-        <article class="summary-card">
-            <span>{{ lease.get_status_display }}</span>
+        <a class="summary-card link-card tenant-lease-card {% if lease.tenant_display_status == 'active' %}is-current{% endif %}" href="{% url 'rental:tenant_lease_management' lease.id %}">
+            <span class="status status-{{ lease.tenant_display_status }}">{{ lease.tenant_display_status_label }}</span>
             <strong>{{ lease.unit.property.name }} · {{ lease.unit.number }}</strong>
-            <small>{{ lease.start_date }} 至 {{ lease.end_date }}</small>
-        </article>
+            <small>{{ lease.start_date|date:"Y/m/d" }} 至 {{ lease.end_date|date:"Y/m/d" }} · 進入租約管理</small>
+        </a>
         {% endfor %}
     </div>
 </section>

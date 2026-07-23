@@ -30,6 +30,29 @@ def _managed_properties(user):
     return Property.objects.filter(Q(owner=user) | Q(memberships__user=user)).distinct()
 
 
+def _tenant_leases(user):
+    """Leases a tenant may view, including their historical moved-out leases."""
+    return Lease.objects.filter(
+        lease_tenants__tenant__user=user,
+        lease_tenants__status__in=[LeaseTenant.Status.ACTIVE, LeaseTenant.Status.MOVED_OUT],
+    ).select_related('unit__property').distinct()
+
+
+def _apply_tenant_lease_display_state(leases):
+    today = timezone.localdate()
+    for lease in leases:
+        if lease.status == Lease.Status.TERMINATED:
+            state = Lease.Status.TERMINATED
+        elif lease.status == Lease.Status.ENDED or lease.end_date < today:
+            state = Lease.Status.ENDED
+        elif lease.status == Lease.Status.ACTIVE and lease.start_date <= today <= lease.end_date:
+            state = Lease.Status.ACTIVE
+        else:
+            state = lease.status
+        lease.tenant_display_status = state
+        lease.tenant_display_status_label = '已到期' if lease.end_date < today and lease.status == Lease.Status.ACTIVE else Lease.Status(state).label
+
+
 def _manager_or_403(user, property_):
     if not can_manage_property(user, property_):
         return HttpResponseForbidden('您沒有管理此物件的權限。')
@@ -72,10 +95,8 @@ def _apply_unit_display_state(units):
 
 @login_required
 def dashboard(request):
-    tenant_leases = Lease.objects.filter(
-        lease_tenants__tenant__user=request.user,
-        lease_tenants__status=LeaseTenant.Status.ACTIVE,
-    ).select_related('unit__property').distinct()
+    tenant_leases = _tenant_leases(request.user)
+    _apply_tenant_lease_display_state(tenant_leases)
     managed_properties = _managed_properties(request.user)
     bills = _accessible_bills(request.user).order_by('-period')[:6]
     return render(request, 'rental/dashboard.html', {
@@ -225,6 +246,16 @@ def lease_detail(request, lease_id):
 
 
 @login_required
+def tenant_lease_management(request, lease_id):
+    lease = get_object_or_404(
+        _tenant_leases(request.user).prefetch_related('lease_tenants__tenant__user'),
+        pk=lease_id,
+    )
+    _apply_tenant_lease_display_state([lease])
+    return render(request, 'rental/tenant_lease_management.html', {'lease': lease})
+
+
+@login_required
 def lease_billing_settings(request, lease_id):
     lease = get_object_or_404(Lease.objects.select_related('unit__property'), pk=lease_id)
     denied = _manager_or_403(request.user, lease.unit.property)
@@ -251,6 +282,13 @@ def lease_billing_settings(request, lease_id):
 def bill_list(request):
     properties = _managed_properties(request.user)
     bills = _accessible_bills(request.user)
+    lease_id = request.GET.get('lease')
+    selected_lease = None
+    if lease_id:
+        selected_lease = get_object_or_404(Lease.objects.select_related('unit__property'), pk=lease_id)
+        if not can_manage_lease(request.user, selected_lease) and not _tenant_leases(request.user).filter(pk=selected_lease.pk).exists():
+            return HttpResponseForbidden('您沒有存取此租約帳單的權限。')
+        bills = bills.filter(lease=selected_lease)
     granted_bill_ids = set(BillTenantPermission.objects.filter(
         bill__in=bills,
         tenant__tenant__user=request.user,
@@ -260,7 +298,7 @@ def bill_list(request):
     ).values_list('bill_id', flat=True))
     for bill in bills:
         bill.is_historic_fill_grant = bill.id in granted_bill_ids or bill.tenant_fill_enabled
-    return render(request, 'rental/bill_list.html', {'bills': bills, 'properties': properties})
+    return render(request, 'rental/bill_list.html', {'bills': bills, 'properties': properties, 'selected_lease': selected_lease})
 
 
 def _lease_months(lease):
@@ -508,19 +546,40 @@ def bill_tenant_permission_create(request):
 @login_required
 def maintenance_list(request):
     properties = _managed_properties(request.user)
-    tenant_leases = Lease.objects.filter(lease_tenants__tenant__user=request.user, lease_tenants__status=LeaseTenant.Status.ACTIVE)
+    tenant_leases = _tenant_leases(request.user)
     requests = MaintenanceRequest.objects.filter(Q(unit__property__in=properties) | Q(lease__in=tenant_leases)).distinct()
-    return render(request, 'rental/maintenance_list.html', {'requests': requests, 'tenant_leases': tenant_leases})
+    selected_lease = None
+    lease_id = request.GET.get('lease')
+    if lease_id:
+        selected_lease = get_object_or_404(tenant_leases, pk=lease_id)
+        requests = requests.filter(lease=selected_lease)
+    active_tenant_leases = tenant_leases.filter(
+        status=Lease.Status.ACTIVE, start_date__lte=timezone.localdate(), end_date__gte=timezone.localdate(),
+        lease_tenants__status=LeaseTenant.Status.ACTIVE,
+    )
+    return render(request, 'rental/maintenance_list.html', {
+        'requests': requests, 'tenant_leases': tenant_leases, 'selected_lease': selected_lease,
+        'can_create_maintenance': active_tenant_leases.filter(pk=selected_lease.pk).exists() if selected_lease else active_tenant_leases.exists(),
+    })
 
 
 @login_required
 def maintenance_create(request):
-    tenant_leases = Lease.objects.filter(lease_tenants__tenant__user=request.user, lease_tenants__status=LeaseTenant.Status.ACTIVE).select_related('unit')
+    tenant_leases = Lease.objects.filter(
+        lease_tenants__tenant__user=request.user,
+        lease_tenants__status=LeaseTenant.Status.ACTIVE,
+        status=Lease.Status.ACTIVE,
+        start_date__lte=timezone.localdate(),
+        end_date__gte=timezone.localdate(),
+    ).select_related('unit').distinct()
     if not tenant_leases.exists():
         return HttpResponseForbidden('僅有效租客可建立報修。')
+    selected_lease = None
+    if request.GET.get('lease'):
+        selected_lease = get_object_or_404(tenant_leases, pk=request.GET['lease'])
     form = MaintenanceForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
-        lease = tenant_leases.first()
+        lease = selected_lease or tenant_leases.first()
         maintenance = form.save(commit=False)
         maintenance.lease = lease
         maintenance.unit = lease.unit
@@ -530,9 +589,10 @@ def maintenance_create(request):
             MaintenanceAttachment.objects.create(request=maintenance, file=form.cleaned_data['attachment'], uploaded_by=request.user)
         log_event('rental.maintenance.created', category=AuditEvent.Category.SYSTEM, message='租客已建立報修單', request=request, metadata={'request_id': maintenance.id})
         messages.success(request, '報修單已送出。')
-        return redirect('rental:maintenance_list')
+        return redirect(f"{reverse('rental:maintenance_list')}?lease={lease.id}")
     return render(request, 'rental/form.html', {
-        'form': form, 'title': '建立報修', 'back_url': reverse('rental:maintenance_list'),
+        'form': form, 'title': '建立報修',
+        'back_url': f"{reverse('rental:maintenance_list')}?lease={selected_lease.id}" if selected_lease else reverse('rental:maintenance_list'),
     })
 
 
