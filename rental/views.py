@@ -175,7 +175,7 @@ def lease_billing_settings(request, lease_id):
     return render(request, 'rental/form.html', {
         'form': form, 'title': f'{lease.unit.property.name} {lease.unit.number} 的帳務設定',
         'back_url': reverse('rental:property_detail', args=[lease.unit.property_id]),
-        'form_intro': '設定會套用於之後自動產生的帳單；既有帳單保留原始快照。',
+        'form_intro': '電費費率可自訂起訖月份，跨年請直接設定起始月份大於結束月份（例如 12 月至 4 月）。設定會套用於之後自動產生的帳單；既有帳單保留原始快照。',
     })
 
 

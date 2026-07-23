@@ -37,14 +37,16 @@ class LeaseForm(forms.ModelForm):
 
 
 class LeaseBillingSettingsForm(forms.Form):
-    summer_electricity_rate = forms.DecimalField(
-        label='夏季每度電價（5–11 月）', required=False, min_value=0, decimal_places=2,
-        help_text='例如 6 元／度；留白會移除此季節費率。',
-    )
-    winter_electricity_rate = forms.DecimalField(
-        label='冬季每度電價（12–4 月）', required=False, min_value=0, decimal_places=2,
-        help_text='例如 5 元／度；留白會移除此季節費率。',
-    )
+    MONTH_CHOICES = [('', '請選擇')] + [(month, f'{month} 月') for month in range(1, 13)]
+
+    electricity_rate_1_name = forms.CharField(label='電費費率一名稱', required=False, max_length=80)
+    electricity_rate_1_start_month = forms.TypedChoiceField(label='費率一起始月份', required=False, choices=MONTH_CHOICES, coerce=int)
+    electricity_rate_1_end_month = forms.TypedChoiceField(label='費率一結束月份', required=False, choices=MONTH_CHOICES, coerce=int)
+    electricity_rate_1_amount = forms.DecimalField(label='費率一每度電價', required=False, min_value=0, decimal_places=2)
+    electricity_rate_2_name = forms.CharField(label='電費費率二名稱', required=False, max_length=80)
+    electricity_rate_2_start_month = forms.TypedChoiceField(label='費率二起始月份', required=False, choices=MONTH_CHOICES, coerce=int)
+    electricity_rate_2_end_month = forms.TypedChoiceField(label='費率二結束月份', required=False, choices=MONTH_CHOICES, coerce=int)
+    electricity_rate_2_amount = forms.DecimalField(label='費率二每度電價', required=False, min_value=0, decimal_places=2)
     water_fee = forms.DecimalField(label='每月水費', required=False, min_value=0, decimal_places=2)
     gas_fee = forms.DecimalField(label='每月瓦斯費', required=False, min_value=0, decimal_places=2)
     management_fee = forms.DecimalField(label='每月管理費', required=False, min_value=0, decimal_places=2)
@@ -57,10 +59,14 @@ class LeaseBillingSettingsForm(forms.Form):
         for field in self.fields.values():
             field.widget.attrs['step'] = '0.01'
 
-        summer = lease.electricity_rates.filter(start_month=5, end_month=11).first()
-        winter = lease.electricity_rates.filter(start_month=12, end_month=4).first()
-        self.fields['summer_electricity_rate'].initial = summer.rate_per_kwh if summer else None
-        self.fields['winter_electricity_rate'].initial = winter.rate_per_kwh if winter else None
+        rates = list(lease.electricity_rates.order_by('id'))
+        self.rate_ids = {}
+        for index, rate in enumerate(rates[:2], start=1):
+            self.rate_ids[index] = rate.id
+            self.fields[f'electricity_rate_{index}_name'].initial = rate.name
+            self.fields[f'electricity_rate_{index}_start_month'].initial = rate.start_month
+            self.fields[f'electricity_rate_{index}_end_month'].initial = rate.end_month
+            self.fields[f'electricity_rate_{index}_amount'].initial = rate.rate_per_kwh
 
         charge_fields = {
             LeaseCharge.ChargeType.WATER: 'water_fee',
@@ -81,25 +87,44 @@ class LeaseBillingSettingsForm(forms.Form):
         has_other_amount = cleaned.get('other_fee') is not None
         if has_other_name != has_other_amount:
             self.add_error('other_fee', '其他費用請同時填寫名稱與金額。')
+        for index in (1, 2):
+            values = [
+                cleaned.get(f'electricity_rate_{index}_start_month'),
+                cleaned.get(f'electricity_rate_{index}_end_month'),
+                cleaned.get(f'electricity_rate_{index}_amount'),
+            ]
+            if any(value is not None for value in values) and not all(value is not None for value in values):
+                self.add_error(f'electricity_rate_{index}_amount', '請完整填寫起始月份、結束月份與每度電價。')
+        rate_months = []
+        for index in (1, 2):
+            start = cleaned.get(f'electricity_rate_{index}_start_month')
+            end = cleaned.get(f'electricity_rate_{index}_end_month')
+            amount = cleaned.get(f'electricity_rate_{index}_amount')
+            if start is not None and end is not None and amount is not None:
+                months = set(range(start, end + 1)) if start <= end else set(range(start, 13)) | set(range(1, end + 1))
+                rate_months.append((index, months))
+        if len(rate_months) == 2 and rate_months[0][1] & rate_months[1][1]:
+            self.add_error('electricity_rate_2_start_month', '兩組電價月份不可重疊。')
         return cleaned
 
     def save(self):
-        rate_specs = [
-            ('summer_electricity_rate', 5, 11, '夏季電價（5–11 月）'),
-            ('winter_electricity_rate', 12, 4, '冬季電價（12–4 月）'),
-        ]
-        for field_name, start_month, end_month, name in rate_specs:
-            rates = self.lease.electricity_rates.filter(start_month=start_month, end_month=end_month).order_by('id')
-            amount = self.cleaned_data[field_name]
+        for index in (1, 2):
+            rate_id = self.rate_ids.get(index)
+            start_month = self.cleaned_data[f'electricity_rate_{index}_start_month']
+            end_month = self.cleaned_data[f'electricity_rate_{index}_end_month']
+            amount = self.cleaned_data[f'electricity_rate_{index}_amount']
+            name = self.cleaned_data[f'electricity_rate_{index}_name'] or f'電費費率（{start_month}–{end_month} 月）'
             if amount is None:
-                rates.delete()
+                if rate_id:
+                    ElectricityRate.objects.filter(pk=rate_id, lease=self.lease).delete()
                 continue
-            rate = rates.first()
-            if rate:
+            if rate_id:
+                rate = ElectricityRate.objects.get(pk=rate_id, lease=self.lease)
                 rate.name = name
+                rate.start_month = start_month
+                rate.end_month = end_month
                 rate.rate_per_kwh = amount
-                rate.save(update_fields=['name', 'rate_per_kwh'])
-                rates.exclude(pk=rate.pk).delete()
+                rate.save(update_fields=['name', 'start_month', 'end_month', 'rate_per_kwh'])
             else:
                 ElectricityRate.objects.create(
                     lease=self.lease, name=name, start_month=start_month,
