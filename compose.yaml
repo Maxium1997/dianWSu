@@ -1,6 +1,27 @@
 name: dianwsu
 
 services:
+  media_init:
+    build: .
+    image: dianwsu-web:latest
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,size=16m
+    volumes:
+      - rental_media:/app/media
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - sh
+      - -c
+      - mkdir -p /app/media && chown -R app:app /app/media
+
   web:
     build: .
     image: dianwsu-web:latest
@@ -12,6 +33,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      media_init:
+        condition: service_completed_successfully
     networks:
       - private
     read_only: true
