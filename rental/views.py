@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from auditlog.models import AuditEvent
 from auditlog.services import log_event
 
-from .forms import LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
+from .forms import LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
 from .models import (
     Announcement, Bill, BillMeterReading, BillPayment, Lease, LeaseDocument, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, TenantInvitation, TenantProfile,
@@ -153,6 +153,29 @@ def lease_create(request, unit_id):
     return render(request, 'rental/form.html', {
         'form': form, 'title': f'建立 {unit.property.name} {unit.number} 的租約',
         'back_url': reverse('rental:property_detail', args=[unit.property_id]),
+    })
+
+
+@login_required
+def lease_billing_settings(request, lease_id):
+    lease = get_object_or_404(Lease.objects.select_related('unit__property'), pk=lease_id)
+    denied = _manager_or_403(request.user, lease.unit.property)
+    if denied:
+        return denied
+    form = LeaseBillingSettingsForm(request.POST or None, lease=lease)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        log_event(
+            'rental.lease.billing_settings_updated', category=AuditEvent.Category.SYSTEM,
+            message='已更新租約帳務設定', request=request,
+            metadata={'lease_id': lease.id, 'unit_id': lease.unit_id},
+        )
+        messages.success(request, '租約帳務設定已更新，之後產生的帳單會套用新設定。')
+        return redirect('rental:property_detail', property_id=lease.unit.property_id)
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': f'{lease.unit.property.name} {lease.unit.number} 的帳務設定',
+        'back_url': reverse('rental:property_detail', args=[lease.unit.property_id]),
+        'form_intro': '設定會套用於之後自動產生的帳單；既有帳單保留原始快照。',
     })
 
 

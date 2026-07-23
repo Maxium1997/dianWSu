@@ -73,6 +73,10 @@ class RentalManagementEditTests(TestCase):
         self.owner = get_user_model().objects.create_user('manager', password='test-password')
         self.property = Property.objects.create(name='原始名稱', owner=self.owner, address='原始地址')
         self.unit = Unit.objects.create(property=self.property, number='101')
+        self.lease = Lease.objects.create(
+            unit=self.unit, start_date=date(2026, 1, 1), end_date=date(2026, 12, 31),
+            monthly_rent=Decimal('10000'), deposit=Decimal('20000'), status=Lease.Status.ACTIVE,
+        )
         self.client.force_login(self.owner)
 
     def test_manager_can_edit_property_and_unit(self):
@@ -92,3 +96,19 @@ class RentalManagementEditTests(TestCase):
         self.assertRedirects(unit_response, reverse('rental:property_detail', args=[self.property.id]))
         self.unit.refresh_from_db()
         self.assertEqual(self.unit.number, '102')
+
+    def test_manager_can_configure_lease_electricity_and_recurring_fees(self):
+        response = self.client.post(
+            reverse('rental:lease_billing_settings', args=[self.lease.id]),
+            {
+                'summer_electricity_rate': '6', 'winter_electricity_rate': '5',
+                'water_fee': '100', 'gas_fee': '80', 'management_fee': '500',
+                'other_fee_name': '網路費', 'other_fee': '300',
+            },
+        )
+        self.assertRedirects(response, reverse('rental:property_detail', args=[self.property.id]))
+        self.assertEqual(ElectricityRate.objects.get(lease=self.lease, start_month=5, end_month=11).rate_per_kwh, Decimal('6'))
+        self.assertEqual(LeaseCharge.objects.get(lease=self.lease, charge_type=LeaseCharge.ChargeType.WATER).default_amount, Decimal('100'))
+        other = LeaseCharge.objects.get(lease=self.lease, charge_type=LeaseCharge.ChargeType.OTHER)
+        self.assertEqual(other.name, '網路費')
+        self.assertEqual(other.default_amount, Decimal('300'))

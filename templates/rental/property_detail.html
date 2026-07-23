@@ -8,7 +8,7 @@
     {% if property.units.all %}
     <div class="data-list">
         {% for unit in property.units.all %}
-        <div><span>{{ unit.floor|default:"未設定樓層" }}</span><strong>{{ unit.number }}{% if unit.room_type %} · {{ unit.room_type }}{% endif %}</strong><em class="item-actions"><a class="status" href="{% url 'rental:unit_edit' unit.id %}">編輯</a><a class="status status-{{ unit.status }}" href="{% url 'rental:lease_create' unit.id %}">建立租約</a></em></div>
+        <div><span>{{ unit.floor|default:"未設定樓層" }}</span><strong>{{ unit.number }}{% if unit.room_type %} · {{ unit.room_type }}{% endif %}</strong><em class="item-actions"><a class="status" href="{% url 'rental:unit_edit' unit.id %}">編輯</a>{% with lease=unit.leases.last %}{% if lease %}<a class="status" href="{% url 'rental:lease_billing_settings' lease.id %}">帳務設定</a>{% endif %}{% endwith %}<a class="status status-{{ unit.status }}" href="{% url 'rental:lease_create' unit.id %}">建立租約</a></em></div>
         {% endfor %}
     </div>
     {% else %}<p class="muted">尚未建立房間。房間的設備與現況照片可在管理後台補充。</p>{% endif %}

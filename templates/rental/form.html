@@ -3,6 +3,7 @@
 {% block rental_content %}
 <div class="rental-heading"><div><p class="eyebrow">Rental management</p><h1>{{ title }}</h1></div>{% if back_url %}<a class="button button-secondary" href="{{ back_url }}">返回</a>{% endif %}</div>
 <section class="rental-panel form-panel">
+{% if form_intro %}<p class="muted">{{ form_intro }}</p>{% endif %}
 <form method="post" enctype="multipart/form-data" class="rental-form">
 {% csrf_token %}
 {% for field in form %}
