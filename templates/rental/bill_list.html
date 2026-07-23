@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}帳單管理{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Billing</p><h1>帳單管理</h1><p>查看租金、水電瓦斯與付款處理狀態。</p></div></div>
+<div class="rental-heading"><div><p class="eyebrow">Billing</p><h1>帳單管理</h1><p>查看租金、水電瓦斯與付款處理狀態。</p></div>{% if properties %}<div class="button-row"><a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a><a class="button" href="{% url 'rental:bill_tenant_permission_create' %}">授權租客補填</a></div>{% else %}<a class="button button-secondary" href="{% url 'rental:dashboard' %}">返回總覽</a>{% endif %}</div>
 <section class="rental-panel">
 {% if bills %}
 <div class="data-list">

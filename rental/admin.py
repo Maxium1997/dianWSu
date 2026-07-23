@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (
-    Announcement, Bill, BillLineItem, BillMeterReading, BillPayment, BillSnapshot,
+    Announcement, Bill, BillLineItem, BillMeterReading, BillPayment, BillSnapshot, BillTenantPermission,
     ElectricityRate, Lease, LeaseCharge, LeaseDocument, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, PropertyMembership,
     TenantInvitation, TenantProfile, Unit, UnitAmenity, UnitPhoto,
@@ -130,4 +130,4 @@ class AnnouncementAdmin(admin.ModelAdmin):
     search_fields = ('title', 'content', 'property__name')
 
 
-admin.site.register([UnitAmenity, UnitPhoto, LeaseTenant, LeaseCharge, ElectricityRate, LeaseDocument, MaintenanceAttachment])
+admin.site.register([UnitAmenity, UnitPhoto, LeaseTenant, LeaseCharge, ElectricityRate, LeaseDocument, MaintenanceAttachment, BillTenantPermission])

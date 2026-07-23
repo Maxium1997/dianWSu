@@ -197,6 +197,7 @@ class LeaseTenant(models.Model):
     status = models.CharField('入住狀態', max_length=16, choices=Status.choices, default=Status.INVITED)
     move_in_date = models.DateField('入住日', null=True, blank=True)
     move_out_date = models.DateField('退租日', null=True, blank=True)
+    billing_access_start_date = models.DateField('帳務權限生效日', null=True, blank=True)
     created_at = models.DateTimeField('建立時間', auto_now_add=True)
 
     class Meta:
@@ -209,6 +210,7 @@ class TenantInvitation(models.Model):
     lease = models.ForeignKey(Lease, verbose_name='租約', on_delete=models.CASCADE, related_name='invitations')
     invited_name = models.CharField('受邀租客姓名', max_length=80)
     invited_email = models.EmailField('受邀租客 Email', blank=True)
+    billing_access_start_date = models.DateField('帳務權限生效日', null=True, blank=True)
     token = models.UUIDField('邀請識別碼', default=uuid.uuid4, unique=True, editable=False)
     expires_at = models.DateTimeField('到期時間')
     accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='接受會員', null=True, blank=True, on_delete=models.SET_NULL)
@@ -315,6 +317,29 @@ class Bill(models.Model):
             current_reading__isnull=False,
         ).order_by('-bill__period').first()
         return reading.current_reading if reading else None
+
+
+class BillTenantPermission(models.Model):
+    """An explicit, auditable exception for a tenant to work on an older bill."""
+
+    bill = models.ForeignKey(Bill, verbose_name='帳單', on_delete=models.CASCADE, related_name='tenant_permissions')
+    tenant = models.ForeignKey(LeaseTenant, verbose_name='租客租約關係', on_delete=models.CASCADE, related_name='bill_permissions')
+    expires_on = models.DateField('授權到期日', null=True, blank=True)
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='授權管理者', null=True, on_delete=models.SET_NULL, related_name='granted_bill_tenant_permissions')
+    created_at = models.DateTimeField('授權時間', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '帳單租客補填授權'
+        verbose_name_plural = '帳單租客補填授權'
+        constraints = [models.UniqueConstraint(fields=['bill', 'tenant'], name='unique_bill_tenant_permission')]
+
+    def clean(self):
+        if self.bill_id and self.tenant_id and self.bill.lease_id != self.tenant.lease_id:
+            raise ValidationError('帳單與租客必須屬於同一份租約。')
+
+    @property
+    def is_active(self):
+        return self.expires_on is None or self.expires_on >= timezone.localdate()
 
 
 class BillLineItem(models.Model):

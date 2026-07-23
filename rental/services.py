@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from auditlog.models import AuditEvent
@@ -8,7 +8,7 @@ from auditlog.services import log_event
 
 from .models import (
     Bill, BillLineItem, BillMeterReading, BillPayment, BillSnapshot,
-    ElectricityRate, Lease, LeaseCharge,
+    BillTenantPermission, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
 )
 
 
@@ -22,6 +22,47 @@ def can_manage_lease(user, lease):
 
 def is_lease_tenant(user, lease):
     return lease.lease_tenants.filter(tenant__user=user, status='active').exists()
+
+
+def can_access_bill(user, bill):
+    """Bill access starts on a tenant's billing-effective date unless explicitly granted."""
+    if can_manage_lease(user, bill.lease):
+        return True
+    default_access = LeaseTenant.objects.filter(
+        lease=bill.lease,
+        tenant__user=user,
+        status=LeaseTenant.Status.ACTIVE,
+        billing_access_start_date__lte=bill.period,
+    ).exists()
+    if default_access:
+        return True
+    return BillTenantPermission.objects.filter(
+        bill=bill,
+        tenant__tenant__user=user,
+        tenant__status=LeaseTenant.Status.ACTIVE,
+    ).filter(
+        models.Q(expires_on__isnull=True) | models.Q(expires_on__gte=timezone.localdate())
+    ).exists()
+
+
+def can_fill_bill(user, bill):
+    if bill.status != Bill.Status.DRAFT:
+        return False
+    default_access = LeaseTenant.objects.filter(
+        lease=bill.lease,
+        tenant__user=user,
+        status=LeaseTenant.Status.ACTIVE,
+        billing_access_start_date__lte=bill.period,
+    ).exists()
+    if default_access:
+        return True
+    return BillTenantPermission.objects.filter(
+        bill=bill,
+        tenant__tenant__user=user,
+        tenant__status=LeaseTenant.Status.ACTIVE,
+    ).filter(
+        models.Q(expires_on__isnull=True) | models.Q(expires_on__gte=timezone.localdate())
+    ).exists()
 
 
 def bill_payload(bill):

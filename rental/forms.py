@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import (
-    BillLineItem, BillMeterReading, BillPayment, ElectricityRate, Lease, LeaseCharge,
+    Bill, BillLineItem, BillMeterReading, BillPayment, BillTenantPermission, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, TenantInvitation, Unit,
 )
 from .services import rate_for_period
@@ -160,7 +160,8 @@ class LeaseBillingSettingsForm(forms.Form):
 class TenantInvitationForm(forms.ModelForm):
     class Meta:
         model = TenantInvitation
-        fields = ['lease', 'invited_name', 'invited_email']
+        fields = ['lease', 'invited_name', 'invited_email', 'billing_access_start_date']
+        widgets = {'billing_access_start_date': forms.DateInput(attrs={'type': 'date'})}
 
     def __init__(self, *args, manager, **kwargs):
         super().__init__(*args, **kwargs)
@@ -169,6 +170,7 @@ class TenantInvitationForm(forms.ModelForm):
                 Q(owner=manager) | Q(memberships__user=manager)
             )
         ).distinct().select_related('unit__property')
+        self.fields['billing_access_start_date'].help_text = '留白時，租客接受邀請後會從租約起始日取得帳務權限。'
 
     def save(self, *, created_by):
         invitation = super().save(commit=False)
@@ -176,6 +178,47 @@ class TenantInvitationForm(forms.ModelForm):
         invitation.expires_at = timezone.now() + timedelta(days=3)
         invitation.save()
         return invitation
+
+
+class BillTenantPermissionForm(forms.Form):
+    lease_tenant = forms.ModelChoiceField(label='租客', queryset=LeaseTenant.objects.none())
+    bills = forms.ModelMultipleChoiceField(label='可補填的歷史帳單', queryset=Bill.objects.none(), widget=forms.CheckboxSelectMultiple)
+    expires_on = forms.DateField(
+        label='授權到期日（選填）', required=False,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        help_text='留白代表未設定期限；只有「待租客填寫」的帳單可被授權。',
+    )
+
+    def __init__(self, *args, manager, **kwargs):
+        super().__init__(*args, **kwargs)
+        managed_properties = Property.objects.filter(Q(owner=manager) | Q(memberships__user=manager)).distinct()
+        self.fields['lease_tenant'].queryset = LeaseTenant.objects.filter(
+            lease__unit__property__in=managed_properties,
+            status=LeaseTenant.Status.ACTIVE,
+        ).select_related('tenant__user', 'lease__unit__property')
+        self.fields['bills'].queryset = Bill.objects.filter(
+            lease__unit__property__in=managed_properties,
+            status=Bill.Status.DRAFT,
+        ).select_related('lease__unit__property').order_by('-period')
+
+    def clean(self):
+        cleaned = super().clean()
+        lease_tenant = cleaned.get('lease_tenant')
+        bills = cleaned.get('bills')
+        if lease_tenant and bills:
+            mismatched = [bill for bill in bills if bill.lease_id != lease_tenant.lease_id]
+            if mismatched:
+                self.add_error('bills', '只能選擇該租客所屬租約的帳單。')
+        return cleaned
+
+    def save(self, *, granted_by):
+        tenant = self.cleaned_data['lease_tenant']
+        for bill in self.cleaned_data['bills']:
+            BillTenantPermission.objects.update_or_create(
+                bill=bill,
+                tenant=tenant,
+                defaults={'expires_on': self.cleaned_data['expires_on'], 'granted_by': granted_by},
+            )
 
 
 class TenantBillForm(forms.Form):

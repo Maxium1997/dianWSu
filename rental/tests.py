@@ -7,11 +7,11 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .models import (
-    Bill, BillLineItem, BillMeterReading, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
+    Bill, BillLineItem, BillMeterReading, BillTenantPermission, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
     Property, TenantProfile, Unit,
 )
 from .forms import TenantBillForm
-from .services import create_bill, is_lease_tenant, rate_for_period
+from .services import can_access_bill, can_fill_bill, create_bill, is_lease_tenant, rate_for_period
 
 
 class RentalBillingTests(TestCase):
@@ -33,7 +33,10 @@ class RentalBillingTests(TestCase):
         ElectricityRate.objects.create(lease=self.lease, start_month=5, end_month=11, rate_per_kwh=Decimal('6'))
         ElectricityRate.objects.create(lease=self.lease, start_month=12, end_month=4, rate_per_kwh=Decimal('5'))
         profile = TenantProfile.objects.create(user=self.tenant_user)
-        LeaseTenant.objects.create(lease=self.lease, tenant=profile, status=LeaseTenant.Status.ACTIVE)
+        LeaseTenant.objects.create(
+            lease=self.lease, tenant=profile, status=LeaseTenant.Status.ACTIVE,
+            billing_access_start_date=date(2026, 1, 1),
+        )
 
     def test_bill_is_created_once_with_rent_and_recurring_items(self):
         bill, created = create_bill(self.lease, date(2026, 6, 1), actor=self.owner)
@@ -81,6 +84,21 @@ class RentalBillingTests(TestCase):
         new_lease_form = TenantBillForm(bill=new_bill)
         self.assertIsNone(new_lease_form.fields['previous_reading'].initial)
         self.assertFalse(new_lease_form.fields['previous_reading'].disabled)
+
+    def test_historic_bill_requires_explicit_tenant_permission_before_billing_access_date(self):
+        tenant_relation = self.lease.lease_tenants.get()
+        tenant_relation.billing_access_start_date = date(2026, 3, 1)
+        tenant_relation.save(update_fields=['billing_access_start_date'])
+        historic_bill = Bill.objects.create(lease=self.lease, period=date(2026, 1, 1), due_date=date(2026, 1, 8))
+        current_bill = Bill.objects.create(lease=self.lease, period=date(2026, 3, 1), due_date=date(2026, 3, 8))
+
+        self.assertFalse(can_access_bill(self.tenant_user, historic_bill))
+        self.assertTrue(can_access_bill(self.tenant_user, current_bill))
+        self.assertFalse(can_fill_bill(self.tenant_user, historic_bill))
+
+        BillTenantPermission.objects.create(bill=historic_bill, tenant=tenant_relation, granted_by=self.owner)
+        self.assertTrue(can_access_bill(self.tenant_user, historic_bill))
+        self.assertTrue(can_fill_bill(self.tenant_user, historic_bill))
 
 
 class RentalLoginTests(TestCase):

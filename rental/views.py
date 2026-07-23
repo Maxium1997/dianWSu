@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,14 +10,14 @@ from django.views.decorators.http import require_POST
 from auditlog.models import AuditEvent
 from auditlog.services import log_event
 
-from .forms import LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
+from .forms import BillTenantPermissionForm, LeaseBillingSettingsForm, LeaseForm, MaintenanceForm, PaymentForm, PropertyForm, TenantBillForm, TenantInvitationForm, UnitForm
 from .models import (
     Announcement, Bill, BillMeterReading, BillPayment, Lease, LeaseDocument, LeaseTenant,
     MaintenanceAttachment, MaintenanceRequest, Property, TenantInvitation, TenantProfile,
     Unit, UnitPhoto,
 )
 from .services import (
-    can_manage_lease, can_manage_property, confirm_bill, confirm_payment,
+    can_access_bill, can_fill_bill, can_manage_lease, can_manage_property, confirm_bill, confirm_payment,
     is_lease_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
 )
 
@@ -32,8 +32,24 @@ def _manager_or_403(user, property_):
 
 
 def _bill_access_or_403(user, bill):
-    if not can_manage_lease(user, bill.lease) and not is_lease_tenant(user, bill.lease):
+    if not can_access_bill(user, bill):
         return HttpResponseForbidden('您沒有存取此帳單的權限。')
+
+
+def _accessible_bills(user):
+    managed_properties = _managed_properties(user)
+    tenant_access = Q(
+        lease__lease_tenants__tenant__user=user,
+        lease__lease_tenants__status=LeaseTenant.Status.ACTIVE,
+        lease__lease_tenants__billing_access_start_date__lte=F('period'),
+    )
+    granted_access = Q(
+        tenant_permissions__tenant__tenant__user=user,
+        tenant_permissions__tenant__status=LeaseTenant.Status.ACTIVE,
+    ) & (Q(tenant_permissions__expires_on__isnull=True) | Q(tenant_permissions__expires_on__gte=timezone.localdate()))
+    return Bill.objects.filter(
+        Q(lease__unit__property__in=managed_properties) | tenant_access | granted_access
+    ).select_related('lease__unit__property').distinct()
 
 
 @login_required
@@ -43,9 +59,7 @@ def dashboard(request):
         lease_tenants__status=LeaseTenant.Status.ACTIVE,
     ).select_related('unit__property').distinct()
     managed_properties = _managed_properties(request.user)
-    bills = Bill.objects.filter(
-        Q(lease__in=tenant_leases) | Q(lease__unit__property__in=managed_properties)
-    ).select_related('lease__unit__property').distinct().order_by('-period')[:6]
+    bills = _accessible_bills(request.user).order_by('-period')[:6]
     return render(request, 'rental/dashboard.html', {
         'tenant_leases': tenant_leases,
         'managed_properties': managed_properties,
@@ -182,10 +196,7 @@ def lease_billing_settings(request, lease_id):
 @login_required
 def bill_list(request):
     properties = _managed_properties(request.user)
-    bills = Bill.objects.filter(
-        Q(lease__unit__property__in=properties) |
-        Q(lease__lease_tenants__tenant__user=request.user, lease__lease_tenants__status=LeaseTenant.Status.ACTIVE)
-    ).select_related('lease__unit__property').distinct()
+    bills = _accessible_bills(request.user)
     return render(request, 'rental/bill_list.html', {'bills': bills, 'properties': properties})
 
 
@@ -196,12 +207,12 @@ def bill_detail(request, bill_id):
     if denied:
         return denied
     is_manager = can_manage_lease(request.user, bill.lease)
-    is_tenant = is_lease_tenant(request.user, bill.lease)
+    is_tenant = is_lease_tenant(request.user, bill.lease) and can_access_bill(request.user, bill)
     return render(request, 'rental/bill_detail.html', {
         'bill': bill,
         'is_manager': is_manager,
         'is_tenant': is_tenant,
-        'tenant_form': TenantBillForm(bill=bill) if is_tenant and bill.status == Bill.Status.DRAFT else None,
+        'tenant_form': TenantBillForm(bill=bill) if can_fill_bill(request.user, bill) else None,
         'payment_form': PaymentForm() if is_tenant and bill.status == Bill.Status.CONFIRMED else None,
     })
 
@@ -210,7 +221,7 @@ def bill_detail(request, bill_id):
 @require_POST
 def bill_submit(request, bill_id):
     bill = get_object_or_404(Bill.objects.select_related('lease__unit__property'), pk=bill_id)
-    if not is_lease_tenant(request.user, bill.lease) or bill.status != Bill.Status.DRAFT:
+    if not can_fill_bill(request.user, bill):
         return HttpResponseForbidden('此帳單目前不可提交。')
     form = TenantBillForm(request.POST, request.FILES, bill=bill)
     if form.is_valid():
@@ -237,7 +248,7 @@ def bill_confirm(request, bill_id):
 @require_POST
 def bill_payment(request, bill_id):
     bill = get_object_or_404(Bill.objects.select_related('lease__unit__property'), pk=bill_id)
-    if not is_lease_tenant(request.user, bill.lease) or bill.status != Bill.Status.CONFIRMED:
+    if not (is_lease_tenant(request.user, bill.lease) and can_access_bill(request.user, bill)) or bill.status != Bill.Status.CONFIRMED:
         return HttpResponseForbidden('此帳單目前不可付款。')
     form = PaymentForm(request.POST, request.FILES)
     if form.is_valid():
@@ -269,7 +280,11 @@ def invitation_accept(request, token):
         LeaseTenant.objects.get_or_create(
             lease=invitation.lease,
             tenant=profile,
-            defaults={'status': LeaseTenant.Status.ACTIVE, 'move_in_date': invitation.lease.start_date},
+            defaults={
+                'status': LeaseTenant.Status.ACTIVE,
+                'move_in_date': invitation.lease.start_date,
+                'billing_access_start_date': invitation.billing_access_start_date or invitation.lease.start_date,
+            },
         )
         invitation.accepted_by = request.user
         invitation.accepted_at = timezone.now()
@@ -298,6 +313,32 @@ def invitation_create(request):
         return redirect('rental:invitation_list')
     return render(request, 'rental/form.html', {
         'form': form, 'title': '建立租客邀請', 'back_url': reverse('rental:invitation_list'),
+    })
+
+
+@login_required
+def bill_tenant_permission_create(request):
+    form = BillTenantPermissionForm(request.POST or None, manager=request.user)
+    if request.method == 'POST' and form.is_valid():
+        tenant = form.cleaned_data['lease_tenant']
+        bills = list(form.cleaned_data['bills'])
+        form.save(granted_by=request.user)
+        log_event(
+            'rental.bill.tenant_permission_granted', category=AuditEvent.Category.SYSTEM,
+            message='已授權租客補填歷史帳單', request=request,
+            metadata={
+                'lease_id': tenant.lease_id,
+                'lease_tenant_id': tenant.id,
+                'bill_ids': [bill.id for bill in bills],
+                'expires_on': form.cleaned_data['expires_on'].isoformat() if form.cleaned_data['expires_on'] else None,
+            },
+        )
+        messages.success(request, '已完成租客歷史帳單補填授權。')
+        return redirect('rental:bill_list')
+    return render(request, 'rental/form.html', {
+        'form': form, 'title': '授權租客補填歷史帳單',
+        'back_url': reverse('rental:bill_list'),
+        'form_intro': '請先選擇租客，再勾選同一份租約中狀態為「待租客填寫」的歷史帳單。已結案帳單維持唯讀，不可直接修改。',
     })
 
 
@@ -345,8 +386,8 @@ def rental_file(request, stored_name):
     candidates = [
         (UnitPhoto, 'image', lambda item: can_manage_property(request.user, item.unit.property)),
         (LeaseDocument, 'file', lambda item: can_manage_lease(request.user, item.lease) or is_lease_tenant(request.user, item.lease)),
-        (BillMeterReading, 'photo', lambda item: can_manage_lease(request.user, item.bill.lease) or is_lease_tenant(request.user, item.bill.lease)),
-        (BillPayment, 'receipt', lambda item: can_manage_lease(request.user, item.bill.lease) or is_lease_tenant(request.user, item.bill.lease)),
+        (BillMeterReading, 'photo', lambda item: can_access_bill(request.user, item.bill)),
+        (BillPayment, 'receipt', lambda item: can_access_bill(request.user, item.bill)),
         (MaintenanceAttachment, 'file', lambda item: can_manage_lease(request.user, item.request.lease) or item.request.created_by_id == request.user),
     ]
     for model, field, permitted in candidates:
