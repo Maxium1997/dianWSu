@@ -193,6 +193,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # `collectstatic` as part of their release process.
 WHITENOISE_USE_FINDERS = env.bool('WHITENOISE_USE_FINDERS', default=not IS_PRODUCTION)
 STORAGES = {
+    # User uploads (meter photos, receipts and attachments) are persisted in
+    # MEDIA_ROOT, which is mounted as a named Docker volume in production.
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
     'staticfiles': {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     },

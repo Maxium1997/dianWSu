@@ -1,9 +1,10 @@
 from datetime import date
 from decimal import Decimal
+from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
@@ -72,7 +73,11 @@ class RentalBillingTests(TestCase):
         )
         self.assertEqual(form.fields['previous_reading'].initial, Decimal('125'))
         self.assertTrue(form.fields['previous_reading'].disabled)
-        self.assertTrue(form.is_valid())
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.assertTrue(form.is_valid())
+            form.save(self.tenant_user)
+            reading = BillMeterReading.objects.get(bill=current_bill)
+            self.assertTrue(reading.photo.name)
         self.assertEqual(form.cleaned_data['previous_reading'], Decimal('125'))
 
         new_lease = Lease.objects.create(
