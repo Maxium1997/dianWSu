@@ -179,6 +179,7 @@ class TenantInvitationForm(forms.ModelForm):
 
 
 class TenantBillForm(forms.Form):
+    previous_reading = forms.DecimalField(label='前次／入住初始電表度數', required=False, min_value=0, decimal_places=2)
     current_reading = forms.DecimalField(label='本次電表度數', required=False, min_value=0, decimal_places=2)
     meter_photo = forms.FileField(label='電表照片', required=False)
     note = forms.CharField(label='給管理者的備註', required=False, widget=forms.Textarea(attrs={'rows': 3}))
@@ -187,10 +188,18 @@ class TenantBillForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.bill = bill
         self.editable_items = list(bill.items.filter(tenant_editable=True).order_by('sort_order', 'id'))
+        self.has_electricity = any(item.item_type == BillLineItem.ItemType.ELECTRICITY for item in self.editable_items)
         for item in self.editable_items:
             self.fields[f'item_{item.id}'] = forms.DecimalField(
                 label=item.name, min_value=0, decimal_places=2, initial=item.amount,
             )
+        self.previous_reading = bill.bills_before_current_reading()
+        if self.previous_reading is not None:
+            self.fields['previous_reading'].initial = self.previous_reading
+            self.fields['previous_reading'].disabled = True
+            self.fields['previous_reading'].help_text = '已自動帶入同一份租約上期的本次度數。'
+        else:
+            self.fields['previous_reading'].help_text = '這是此租約的首次抄表，請填寫入住時的電表初始度數。'
         try:
             reading = bill.meter_reading
             self.fields['current_reading'].initial = reading.current_reading
@@ -200,8 +209,14 @@ class TenantBillForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         current = cleaned.get('current_reading')
-        has_electricity = any(item.item_type == BillLineItem.ItemType.ELECTRICITY for item in self.editable_items)
-        if has_electricity and current is not None and not cleaned.get('meter_photo'):
+        previous = cleaned.get('previous_reading')
+        if self.has_electricity and previous is None:
+            self.add_error('previous_reading', '請填寫入住初始電表度數。')
+        if self.has_electricity and current is None:
+            self.add_error('current_reading', '請填寫本次電表度數。')
+        if self.has_electricity and current is not None and previous is not None and current < previous:
+            self.add_error('current_reading', '本次度數不可小於前次／入住初始度數。')
+        if self.has_electricity and current is not None and not cleaned.get('meter_photo'):
             try:
                 if not self.bill.meter_reading.photo:
                     self.add_error('meter_photo', '填寫電表度數時必須上傳電表照片。')
@@ -214,8 +229,8 @@ class TenantBillForm(forms.Form):
             item.amount = self.cleaned_data[f'item_{item.id}']
             item.save(update_fields=['amount'])
         current = self.cleaned_data.get('current_reading')
-        if current is not None:
-            previous = self.bill.bills_before_current_reading()
+        previous = self.cleaned_data.get('previous_reading')
+        if self.has_electricity and current is not None and previous is not None:
             reading, _ = BillMeterReading.objects.get_or_create(bill=self.bill)
             reading.previous_reading = previous
             reading.current_reading = current

@@ -11,7 +11,7 @@
 
 {% if tenant_form %}
 <section class="rental-panel">
-<h2>填寫帳單資訊</h2><p class="muted">填寫完成後會提交給管理者確認；電表讀數需附上電表照片。</p>
+<h2>填寫帳單資訊</h2><p class="muted">前次度數會依同一份租約自動帶入；首次抄表請填寫入住初始度數。每次抄表均需附上電表照片。</p>
 <form method="post" action="{% url 'rental:bill_submit' bill.id %}" enctype="multipart/form-data" class="rental-form">
 {% csrf_token %}{% for field in tenant_form %}<label>{{ field.label }}{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</label>{% endfor %}
 <button class="button" type="submit">提交帳單</button></form>

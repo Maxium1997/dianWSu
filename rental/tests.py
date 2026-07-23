@@ -2,13 +2,15 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import (
-    Bill, BillLineItem, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
+    Bill, BillLineItem, BillMeterReading, ElectricityRate, Lease, LeaseCharge, LeaseTenant,
     Property, TenantProfile, Unit,
 )
+from .forms import TenantBillForm
 from .services import create_bill, is_lease_tenant, rate_for_period
 
 
@@ -48,6 +50,37 @@ class RentalBillingTests(TestCase):
         self.assertEqual(rate_for_period(self.lease, date(2026, 7, 1)), Decimal('6'))
         self.assertEqual(rate_for_period(self.lease, date(2026, 1, 1)), Decimal('5'))
         self.assertTrue(is_lease_tenant(self.tenant_user, self.lease))
+
+    def test_meter_readings_are_carried_only_within_the_same_lease(self):
+        prior_bill = Bill.objects.create(lease=self.lease, period=date(2026, 1, 1), due_date=date(2026, 1, 8))
+        BillMeterReading.objects.create(bill=prior_bill, previous_reading=Decimal('100'), current_reading=Decimal('125'))
+        current_bill = Bill.objects.create(lease=self.lease, period=date(2026, 2, 1), due_date=date(2026, 2, 8))
+        electricity = BillLineItem.objects.create(
+            bill=current_bill, item_type=BillLineItem.ItemType.ELECTRICITY,
+            name='電費', amount=Decimal('0'), tenant_editable=True,
+        )
+        form = TenantBillForm(
+            data={
+                'previous_reading': '999', 'current_reading': '150',
+                f'item_{electricity.id}': '0', 'note': '',
+            },
+            files={'meter_photo': SimpleUploadedFile('meter.jpg', b'meter-image', content_type='image/jpeg')},
+            bill=current_bill,
+        )
+        self.assertEqual(form.fields['previous_reading'].initial, Decimal('125'))
+        self.assertTrue(form.fields['previous_reading'].disabled)
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['previous_reading'], Decimal('125'))
+
+        new_lease = Lease.objects.create(
+            unit=self.lease.unit, start_date=date(2027, 1, 1), end_date=date(2027, 12, 31),
+            monthly_rent=Decimal('12000'), deposit=Decimal('24000'), status=Lease.Status.DRAFT,
+        )
+        new_bill = Bill.objects.create(lease=new_lease, period=date(2027, 1, 1), due_date=date(2027, 1, 8))
+        BillLineItem.objects.create(bill=new_bill, item_type=BillLineItem.ItemType.ELECTRICITY, name='電費', amount=Decimal('0'), tenant_editable=True)
+        new_lease_form = TenantBillForm(bill=new_bill)
+        self.assertIsNone(new_lease_form.fields['previous_reading'].initial)
+        self.assertFalse(new_lease_form.fields['previous_reading'].disabled)
 
 
 class RentalLoginTests(TestCase):
