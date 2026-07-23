@@ -143,3 +143,8 @@ credentials.json
 
 # Python version
 .python-version
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
