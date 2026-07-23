@@ -215,3 +215,8 @@ class RentalManagementEditTests(TestCase):
         self.assertTrue(historic_bill.tenant_fill_enabled)
         self.assertEqual(historic_bill.status, Bill.Status.DRAFT)
         self.assertTrue(can_access_bill(tenant_user, historic_bill))
+
+        historic_bill.status = Bill.Status.SUBMITTED
+        historic_bill.save(update_fields=['status'])
+        review_list = self.client.get(reverse('rental:lease_bill_list', args=[self.lease.id]))
+        self.assertContains(review_list, reverse('rental:bill_detail', args=[historic_bill.id]))

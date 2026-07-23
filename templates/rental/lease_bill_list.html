@@ -42,7 +42,7 @@
     <div class="panel-heading"><h2>每月帳單</h2><span>{{ entries|length }} 個月</span></div>
     <div class="lease-bill-list">
         {% for entry in entries %}
-        {% if entry.bill and entry.bill.status == 'paid' %}
+        {% if entry.bill %}
         <a class="lease-bill-row" href="{% url 'rental:bill_detail' entry.bill.id %}">
             <span>{{ entry.period|date:"Y 年 m 月" }}</span><strong>NT$ {{ entry.bill.total_amount }}</strong><em class="status status-{{ entry.bill.status }}">{{ entry.bill.get_status_display }}</em>
         </a>
