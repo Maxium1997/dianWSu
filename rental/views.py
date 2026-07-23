@@ -21,7 +21,7 @@ from .models import (
 )
 from .services import (
     can_access_bill, can_fill_bill, can_manage_lease, can_manage_property, confirm_bill, confirm_payment,
-    is_lease_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
+    create_bill, is_lease_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
 )
 
 
@@ -263,30 +263,33 @@ def lease_bill_list(request, lease_id):
     if denied:
         return denied
 
+    bills_by_period = {bill.period: bill for bill in lease.bills.all()}
+    entries = [{'period': period, 'bill': bills_by_period.get(period)} for period in _lease_months(lease)]
+    unbilled_periods = [entry['period'] for entry in entries if entry['bill'] is None]
     grant_mode = request.GET.get('grant') == '1' or request.method == 'POST'
-    form = LeaseBillTenantPermissionForm(request.POST or None, lease=lease) if grant_mode else None
+    form = LeaseBillTenantPermissionForm(
+        request.POST or None, lease=lease, unbilled_periods=unbilled_periods,
+    ) if grant_mode else None
     if request.method == 'POST' and form.is_valid():
-        bills = list(form.cleaned_data['bills'])
-        for bill in bills:
+        periods = list(form.cleaned_data['periods'])
+        bills = []
+        for period in periods:
+            bill, _ = create_bill(lease, period, actor=request.user, request=request)
             bill.tenant_fill_enabled = True
-            bill.status = Bill.Status.DRAFT
-            bill.submitted_at = None
-            bill.confirmed_at = None
-            bill.save(update_fields=['tenant_fill_enabled', 'status', 'submitted_at', 'confirmed_at', 'updated_at'])
+            bill.save(update_fields=['tenant_fill_enabled', 'updated_at'])
             snapshot_bill(bill, 'manager_authorized_tenant_fill', actor=request.user, request=request)
+            bills.append(bill)
         log_event(
-            'rental.bill.lease_fill_authorized', category=AuditEvent.Category.SYSTEM,
-            message='已授權租約租客填補未繳帳單', request=request,
+            'rental.bill.unbilled_period_authorized', category=AuditEvent.Category.SYSTEM,
+            message='已建立並授權租約租客填補歷史帳單', request=request,
             metadata={
                 'lease_id': lease.id,
                 'bill_ids': [bill.id for bill in bills],
+                'periods': [period.isoformat() for period in periods],
             },
         )
-        messages.success(request, '已將選取帳單開放給此租約的租客填補。')
+        messages.success(request, '已建立選取月份的帳單，並開放給此租約的租客填補。')
         return redirect('rental:lease_bill_list', lease_id=lease.id)
-
-    bills_by_period = {bill.period: bill for bill in lease.bills.all()}
-    entries = [{'period': period, 'bill': bills_by_period.get(period)} for period in _lease_months(lease)]
     return render(request, 'rental/lease_bill_list.html', {
         'lease': lease,
         'entries': entries,

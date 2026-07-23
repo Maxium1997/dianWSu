@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -222,12 +222,14 @@ class BillTenantPermissionForm(forms.Form):
 
 
 class LeaseBillTenantPermissionForm(forms.Form):
-    bills = forms.ModelMultipleChoiceField(label='帳單', queryset=Bill.objects.none(), required=True)
+    periods = forms.TypedMultipleChoiceField(label='尚未產生帳單的月份', choices=(), coerce=date.fromisoformat, required=True)
 
-    def __init__(self, *args, lease, **kwargs):
+    def __init__(self, *args, lease, unbilled_periods, **kwargs):
         super().__init__(*args, **kwargs)
         self.lease = lease
-        self.fields['bills'].queryset = lease.bills.exclude(status=Bill.Status.PAID).order_by('period')
+        self.fields['periods'].choices = [
+            (period.isoformat(), f'{period:%Y 年 %m 月}') for period in unbilled_periods
+        ]
 
 
 class TenantBillForm(forms.Form):

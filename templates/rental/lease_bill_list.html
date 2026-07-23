@@ -12,28 +12,28 @@
 {% if grant_mode %}
 <section class="rental-panel">
     <h2>授權租客填補歷史帳單</h2>
-    <p class="muted">點選未繳帳單即可選取。確認後，該帳單會直接開放給這份租約的租客填補，不設個別租客或授權期限。</p>
+    <p class="muted">僅能選取尚未產生帳單的月份。確認後，系統會建立該月帳單並直接開放給這份租約的租客填補。</p>
     <form method="post" class="rental-form">
         {% csrf_token %}
         <div class="lease-bill-list" data-bill-selection>
             {% for entry in entries %}
-            {% if entry.bill and entry.bill.status != 'paid' %}
-            <button class="lease-bill-row is-selectable" type="button" data-bill-toggle data-bill-id="{{ entry.bill.id }}" aria-pressed="false">
+            {% if not entry.bill %}
+            <button class="lease-bill-row is-selectable" type="button" data-bill-toggle data-period="{{ entry.period|date:'Y-m-d' }}" aria-pressed="false">
                 <span>{{ entry.period|date:"Y 年 m 月" }}</span>
-                <strong>NT$ {{ entry.bill.total_amount }}</strong>
-                <em class="status status-{{ entry.bill.status }}">{{ entry.bill.get_status_display }}</em>
+                <strong>尚未產生帳單</strong>
+                <em class="status">可建立並授權</em>
             </button>
             {% else %}
             <div class="lease-bill-row is-disabled">
                 <span>{{ entry.period|date:"Y 年 m 月" }}</span>
-                <strong>{% if entry.bill %}NT$ {{ entry.bill.total_amount }}{% else %}尚未產生帳單{% endif %}</strong>
+                <strong>NT$ {{ entry.bill.total_amount }}</strong>
                 <em class="status {% if entry.bill %}status-{{ entry.bill.status }}{% endif %}">{% if entry.bill %}{{ entry.bill.get_status_display }}{% else %}—{% endif %}</em>
             </div>
             {% endif %}
             {% endfor %}
         </div>
         <div data-bill-inputs></div>
-        {% for error in permission_form.bills.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        {% for error in permission_form.periods.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
         <button class="button" type="submit">確認授權</button>
     </form>
 </section>
@@ -63,15 +63,15 @@
             button.setAttribute('aria-pressed', String(!selected));
             button.classList.toggle('is-selected', !selected);
             const inputs = document.querySelector('[data-bill-inputs]');
-            const existing = inputs.querySelector('[data-bill-input="' + button.dataset.billId + '"]');
+            const existing = inputs.querySelector('[data-bill-input="' + button.dataset.period + '"]');
             if (existing) {
                 existing.remove();
             } else {
                 const input = document.createElement('input');
                 input.type = 'hidden';
-                input.name = 'bills';
-                input.value = button.dataset.billId;
-                input.dataset.billInput = button.dataset.billId;
+                input.name = 'periods';
+                input.value = button.dataset.period;
+                input.dataset.billInput = button.dataset.period;
                 inputs.appendChild(input);
             }
         });

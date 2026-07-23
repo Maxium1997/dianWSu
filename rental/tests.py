@@ -192,21 +192,20 @@ class RentalManagementEditTests(TestCase):
             lease=self.lease, tenant=tenant, status=LeaseTenant.Status.ACTIVE,
             billing_access_start_date=date(2026, 6, 1),
         )
-        historic_bill = Bill.objects.create(lease=self.lease, period=date(2026, 1, 1), due_date=date(2026, 1, 8))
-
         workspace = self.client.get(reverse('rental:property_list'))
         self.assertContains(workspace, '查看帳單')
         self.assertContains(workspace, reverse('rental:lease_bill_list', args=[self.lease.id]))
 
         bill_list = self.client.get(reverse('rental:lease_bill_list', args=[self.lease.id]))
         self.assertContains(bill_list, '授權租客填補')
-        self.assertContains(bill_list, '待租客填寫')
+        self.assertContains(bill_list, '尚未產生帳單')
 
         grant = self.client.post(
             reverse('rental:lease_bill_list', args=[self.lease.id]) + '?grant=1',
-            {'bills': [historic_bill.id]},
+            {'periods': ['2026-01-01']},
         )
         self.assertRedirects(grant, reverse('rental:lease_bill_list', args=[self.lease.id]))
+        historic_bill = Bill.objects.get(lease=self.lease, period=date(2026, 1, 1))
         historic_bill.refresh_from_db()
         self.assertTrue(historic_bill.tenant_fill_enabled)
         self.assertEqual(historic_bill.status, Bill.Status.DRAFT)
