@@ -294,9 +294,14 @@ class Bill(models.Model):
 
     lease = models.ForeignKey(Lease, verbose_name='租約', on_delete=models.PROTECT, related_name='bills')
     period = models.DateField('帳單月份')
+    revision = models.PositiveSmallIntegerField('帳單版次', default=1)
     due_date = models.DateField('付款期限')
     status = models.CharField('帳單狀態', max_length=24, choices=Status.choices, default=Status.DRAFT)
     tenant_fill_enabled = models.BooleanField('允許租約租客補填', default=False)
+    reissued_from = models.ForeignKey(
+        'self', verbose_name='重新建立來源帳單', null=True, blank=True,
+        on_delete=models.PROTECT, related_name='replacement_bills',
+    )
     created_at = models.DateTimeField('建立時間', auto_now_add=True)
     updated_at = models.DateTimeField('更新時間', auto_now=True)
     submitted_at = models.DateTimeField('提交時間', null=True, blank=True)
@@ -306,8 +311,14 @@ class Bill(models.Model):
     class Meta:
         verbose_name = '帳單'
         verbose_name_plural = '帳單'
-        ordering = ['-period', '-created_at']
-        constraints = [models.UniqueConstraint(fields=['lease', 'period'], name='unique_bill_per_lease_period')]
+        ordering = ['-period', '-revision', '-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['lease', 'period', 'revision'], name='unique_bill_revision_per_lease_period'),
+            models.UniqueConstraint(
+                fields=['lease', 'period'], condition=~models.Q(status='void'),
+                name='unique_non_void_bill_per_lease_period',
+            ),
+        ]
 
     @property
     def total_amount(self):
@@ -318,7 +329,7 @@ class Bill(models.Model):
         return self.status not in {self.Status.PAID, self.Status.VOID} and timezone.localdate() > self.due_date
 
     def __str__(self):
-        return f'{self.lease} / {self.period:%Y-%m}'
+        return f'{self.lease} / {self.period:%Y-%m} #{self.revision}'
 
     def bills_before_current_reading(self):
         reading = BillMeterReading.objects.filter(

@@ -1,7 +1,7 @@
 {% extends "rental/base.html" %}
 {% block rental_title %}{{ bill.period|date:"Y 年 m 月" }}帳單{% endblock %}
 {% block rental_content %}
-<div class="rental-heading"><div><p class="eyebrow">Bill {{ bill.period|date:"Y-m" }}</p><h1>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</h1><p>付款期限：{{ bill.due_date|date:"Y/m/d" }} · <span class="status status-{{ bill.status }}">{{ bill.get_status_display }}</span></p></div><a class="button button-secondary" href="{% url 'rental:bill_list' %}">返回帳單</a></div>
+<div class="rental-heading"><div><p class="eyebrow">Bill {{ bill.period|date:"Y-m" }} · 第 {{ bill.revision }} 版</p><h1>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }}</h1><p>付款期限：{{ bill.due_date|date:"Y/m/d" }} · <span class="status status-{{ bill.status }}">{{ bill.get_status_display }}</span></p></div><a class="button button-secondary" href="{% url 'rental:bill_list' %}">返回帳單</a></div>
 <section class="rental-panel">
 <div class="panel-heading"><h2>帳單明細</h2><strong>NT$ {{ bill.total_amount }}</strong></div>
 <div class="data-list">
@@ -42,6 +42,10 @@
 
 {% if manager_can_void and not manager_form %}
 <section class="rental-panel"><h2>作廢帳單</h2><p class="muted">作廢後帳單僅可檢視，無法重新啟用。</p><form method="post" action="{% url 'rental:bill_void' bill.id %}" class="inline-form">{% csrf_token %}<input name="reason" required placeholder="作廢原因"><button class="button button-danger" type="submit">作廢帳單</button></form></section>
+{% endif %}
+
+{% if manager_can_reissue %}
+<section class="rental-panel"><h2>重新建立帳單</h2><p class="muted">會保留目前作廢帳單，並建立同月份的下一版「待租客填寫」帳單。</p><form method="post" action="{% url 'rental:bill_reissue' bill.id %}">{% csrf_token %}<button class="button" type="submit">建立新版本帳單</button></form></section>
 {% endif %}
 
 <section class="rental-panel"><div class="panel-heading"><h2>帳單歷程與快照</h2><span>{{ bill.snapshots.count }} 筆</span></div><div class="timeline">{% for snapshot in bill.snapshots.all %}<article><strong>{{ snapshot.event_type }}</strong><span>{{ snapshot.created_at|date:"Y/m/d H:i" }}{% if snapshot.actor %} · {{ snapshot.actor.get_username }}{% endif %}</span>{% if snapshot.note %}<p>{{ snapshot.note }}</p>{% endif %}</article>{% empty %}<p class="muted">尚無快照。</p>{% endfor %}</div></section>

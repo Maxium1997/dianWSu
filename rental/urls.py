@@ -26,6 +26,7 @@ urlpatterns = [
     path('bills/<int:bill_id>/confirm/', views.bill_confirm, name='bill_confirm'),
     path('bills/<int:bill_id>/return/', views.bill_return, name='bill_return'),
     path('bills/<int:bill_id>/void/', views.bill_void, name='bill_void'),
+    path('bills/<int:bill_id>/reissue/', views.bill_reissue, name='bill_reissue'),
     path('bills/<int:bill_id>/payment/', views.bill_payment, name='bill_payment'),
     path('bills/<int:bill_id>/payment/confirm/', views.bill_payment_confirm, name='bill_payment_confirm'),
     path('invitations/<uuid:token>/', views.invitation_accept, name='invitation_accept'),

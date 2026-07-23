@@ -21,8 +21,8 @@ from .models import (
 )
 from .services import (
     can_access_bill, can_fill_bill, can_manage_lease, can_manage_property, confirm_bill, confirm_payment,
-    create_bill, is_lease_tenant, return_bill_to_tenant, snapshot_bill, submit_bill_for_review, submit_payment,
-    void_bill,
+    create_bill, is_lease_tenant, reissue_voided_bill, return_bill_to_tenant, snapshot_bill,
+    submit_bill_for_review, submit_payment, void_bill,
 )
 
 
@@ -289,6 +289,8 @@ def bill_list(request):
         if not can_manage_lease(request.user, selected_lease) and not _tenant_leases(request.user).filter(pk=selected_lease.pk).exists():
             return HttpResponseForbidden('您沒有存取此租約帳單的權限。')
         bills = bills.filter(lease=selected_lease)
+        if not can_manage_lease(request.user, selected_lease):
+            bills = bills.exclude(status=Bill.Status.VOID)
     granted_bill_ids = set(BillTenantPermission.objects.filter(
         bill__in=bills,
         tenant__tenant__user=request.user,
@@ -316,7 +318,9 @@ def lease_bill_list(request, lease_id):
     if denied:
         return denied
 
-    bills_by_period = {bill.period: bill for bill in lease.bills.all()}
+    bills_by_period = {}
+    for bill in lease.bills.order_by('period', '-revision'):
+        bills_by_period.setdefault(bill.period, bill)
     entries = [{'period': period, 'bill': bills_by_period.get(period)} for period in _lease_months(lease)]
     unbilled_periods = [entry['period'] for entry in entries if entry['bill'] is None]
     grant_mode = request.GET.get('grant') == '1' or request.method == 'POST'
@@ -361,6 +365,8 @@ def bill_detail(request, bill_id):
     is_tenant = is_lease_tenant(request.user, bill.lease) and can_access_bill(request.user, bill)
     manager_can_edit = is_manager and bill.status == Bill.Status.SUBMITTED
     manager_can_void = is_manager and bill.status not in {Bill.Status.PAID, Bill.Status.VOID}
+    latest_bill = Bill.objects.filter(lease=bill.lease, period=bill.period).order_by('-revision').first()
+    manager_can_reissue = is_manager and bill.status == Bill.Status.VOID and latest_bill.pk == bill.pk
     return render(request, 'rental/bill_detail.html', {
         'bill': bill,
         'is_manager': is_manager,
@@ -369,6 +375,7 @@ def bill_detail(request, bill_id):
         'manager_form': ManagerBillForm(bill=bill) if manager_can_edit else None,
         'payment_form': PaymentForm() if is_tenant and bill.status == Bill.Status.CONFIRMED else None,
         'manager_can_void': manager_can_void,
+        'manager_can_reissue': manager_can_reissue,
     })
 
 
@@ -443,6 +450,18 @@ def bill_void(request, bill_id):
         void_bill(bill, actor=request.user, request=request, reason=reason)
         messages.success(request, '帳單已作廢。')
     return redirect('rental:bill_detail', bill_id=bill.id)
+
+
+@login_required
+@require_POST
+def bill_reissue(request, bill_id):
+    bill = get_object_or_404(Bill.objects.select_related('lease__unit__property'), pk=bill_id)
+    latest_bill = Bill.objects.filter(lease=bill.lease, period=bill.period).order_by('-revision').first()
+    if not can_manage_lease(request.user, bill.lease) or bill.status != Bill.Status.VOID or latest_bill.pk != bill.pk:
+        return HttpResponseForbidden('此帳單目前不可重新建立。')
+    replacement = reissue_voided_bill(bill, actor=request.user, request=request)
+    messages.success(request, f'已建立第 {replacement.revision} 版帳單並開放租客填寫。')
+    return redirect('rental:bill_detail', bill_id=replacement.id)
 
 
 @login_required

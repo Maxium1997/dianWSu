@@ -131,13 +131,17 @@ def rate_for_period(lease, period):
 @transaction.atomic
 def create_bill(lease, period, *, actor=None, request=None):
     period = period.replace(day=1)
-    bill, created = Bill.objects.get_or_create(
-        lease=lease,
-        period=period,
-        defaults={'due_date': lease.due_date_for(period)},
+    existing = Bill.objects.filter(lease=lease, period=period).order_by('-revision').first()
+    if existing:
+        return existing, False
+    return _create_bill(lease, period, revision=1, actor=actor, request=request), True
+
+
+def _create_bill(lease, period, *, revision, actor=None, request=None, reissued_from=None, tenant_fill_enabled=False):
+    bill = Bill.objects.create(
+        lease=lease, period=period, revision=revision, due_date=lease.due_date_for(period),
+        reissued_from=reissued_from, tenant_fill_enabled=tenant_fill_enabled,
     )
-    if not created:
-        return bill, False
 
     BillLineItem.objects.create(
         bill=bill,
@@ -170,7 +174,27 @@ def create_bill(lease, period, *, actor=None, request=None):
             sort_order=index,
         )
     snapshot_bill(bill, 'created', actor=actor, request=request)
-    return bill, True
+    return bill
+
+
+@transaction.atomic
+def reissue_voided_bill(voided_bill, *, actor=None, request=None):
+    if voided_bill.status != Bill.Status.VOID:
+        raise ValidationError('只有已作廢帳單可以重新建立。')
+    latest_bill = Bill.objects.filter(
+        lease=voided_bill.lease, period=voided_bill.period,
+    ).order_by('-revision').first()
+    if latest_bill.pk != voided_bill.pk:
+        raise ValidationError('此月份已有更新版本的帳單，請操作最新版本。')
+    replacement = _create_bill(
+        voided_bill.lease, voided_bill.period, revision=voided_bill.revision + 1,
+        actor=actor, request=request, reissued_from=voided_bill, tenant_fill_enabled=True,
+    )
+    snapshot_bill(
+        replacement, 'manager_reissued', actor=actor, request=request,
+        note=f'重新建立自已作廢帳單 #{voided_bill.id}（第 {voided_bill.revision} 版）。',
+    )
+    return replacement
 
 
 def generate_current_bills(*, actor=None, request=None):

@@ -195,6 +195,15 @@ class RentalBillWorkflowPermissionTests(TestCase):
         self.assertEqual(self.bill.status, Bill.Status.VOID)
         self.assertEqual(self.client.post(reverse('rental:bill_void', args=[self.bill.id]), {'reason': '再次作廢'}).status_code, 403)
 
+        reissued = self.client.post(reverse('rental:bill_reissue', args=[self.bill.id]))
+        replacement = Bill.objects.get(lease=self.lease, period=self.bill.period, revision=2)
+        self.assertRedirects(reissued, reverse('rental:bill_detail', args=[replacement.id]))
+        self.assertEqual(replacement.status, Bill.Status.DRAFT)
+        self.assertTrue(replacement.tenant_fill_enabled)
+        self.assertEqual(replacement.reissued_from_id, self.bill.id)
+        self.assertTrue(can_fill_bill(self.tenant_user, replacement))
+        self.assertEqual(self.client.post(reverse('rental:bill_reissue', args=[self.bill.id])).status_code, 403)
+
 
 class RentalManagementEditTests(TestCase):
     def setUp(self):

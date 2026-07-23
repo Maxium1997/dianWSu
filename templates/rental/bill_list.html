@@ -6,7 +6,7 @@
 {% if bills %}
 <div class="data-list">
 {% for bill in bills %}
-<a href="{% url 'rental:bill_detail' bill.id %}"><span>{{ bill.period|date:"Y 年 m 月" }} · 到期 {{ bill.due_date|date:"m/d" }}</span><strong>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }} · NT$ {{ bill.total_amount }}{% if bill.is_historic_fill_grant %}<small class="muted"> · 已授權補填</small>{% endif %}</strong><em class="status status-{{ bill.status }}{% if bill.is_overdue %} overdue{% endif %}">{% if bill.is_overdue %}逾期 · {% endif %}{{ bill.get_status_display }}</em></a>
+<a href="{% url 'rental:bill_detail' bill.id %}"><span>{{ bill.period|date:"Y 年 m 月" }} · 第 {{ bill.revision }} 版 · 到期 {{ bill.due_date|date:"m/d" }}</span><strong>{{ bill.lease.unit.property.name }} · {{ bill.lease.unit.number }} · NT$ {{ bill.total_amount }}{% if bill.is_historic_fill_grant %}<small class="muted"> · 已授權補填</small>{% endif %}</strong><em class="status status-{{ bill.status }}{% if bill.is_overdue %} overdue{% endif %}">{% if bill.is_overdue %}逾期 · {% endif %}{{ bill.get_status_display }}</em></a>
 {% endfor %}
 </div>
 {% else %}<div class="empty-state"><p>尚無可查看的帳單。</p></div>{% endif %}
