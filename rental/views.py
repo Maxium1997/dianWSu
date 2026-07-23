@@ -211,6 +211,20 @@ def lease_create(request, unit_id):
 
 
 @login_required
+def lease_detail(request, lease_id):
+    lease = get_object_or_404(
+        Lease.objects.select_related('unit__property').prefetch_related(
+            'lease_tenants__tenant__user', 'recurring_charges', 'electricity_rates',
+        ),
+        pk=lease_id,
+    )
+    denied = _manager_or_403(request.user, lease.unit.property)
+    if denied:
+        return denied
+    return render(request, 'rental/lease_detail.html', {'lease': lease})
+
+
+@login_required
 def lease_billing_settings(request, lease_id):
     lease = get_object_or_404(Lease.objects.select_related('unit__property'), pk=lease_id)
     denied = _manager_or_403(request.user, lease.unit.property)

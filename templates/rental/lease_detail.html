@@ -1,0 +1,34 @@
+{% extends "rental/base.html" %}
+{% block rental_title %}租約詳情{% endblock %}
+{% block rental_content %}
+<div class="rental-heading">
+    <div><p class="eyebrow">Lease</p><h1>{{ lease.unit.property.name }} · {{ lease.unit.number }}</h1><p>{{ lease.get_status_display }}</p></div>
+    <div class="button-row"><a class="button button-secondary" href="{% url 'rental:property_list' %}">返回管理者工作區</a><a class="button button-secondary" href="{% url 'rental:lease_billing_settings' lease.id %}">帳務設定</a><a class="button" href="{% url 'rental:lease_bill_list' lease.id %}">查看帳單</a></div>
+</div>
+
+<section class="rental-panel">
+    <div class="panel-heading"><h2>租約資料</h2><span>{{ lease.get_status_display }}</span></div>
+    <dl class="property-facts">
+        <div><dt>租約期間</dt><dd>{{ lease.start_date|date:"Y/m/d" }} 至 {{ lease.end_date|date:"Y/m/d" }}</dd></div>
+        <div><dt>每月租金</dt><dd>NT$ {{ lease.monthly_rent }}</dd></div>
+        <div><dt>押金</dt><dd>NT$ {{ lease.deposit }}</dd></div>
+        <div><dt>每月應繳日</dt><dd>{{ lease.due_day }} 日</dd></div>
+    </dl>
+</section>
+
+<section class="rental-panel">
+    <div class="panel-heading"><h2>共同承租人</h2><span>{{ lease.lease_tenants.count }} 位</span></div>
+    {% if lease.lease_tenants.all %}
+    <div class="data-list">{% for relation in lease.lease_tenants.all %}<div><span>{{ relation.tenant.user.get_username }}</span><strong>{{ relation.get_status_display }}</strong><em>{% if relation.move_in_date %}入住：{{ relation.move_in_date|date:"Y/m/d" }}{% endif %}</em></div>{% endfor %}</div>
+    {% else %}<p class="muted">尚未綁定租客。</p>{% endif %}
+</section>
+
+<section class="rental-panel">
+    <div class="panel-heading"><h2>帳務設定摘要</h2><a href="{% url 'rental:lease_billing_settings' lease.id %}">調整設定</a></div>
+    <div class="data-list">
+        {% for rate in lease.electricity_rates.all %}<div><span>{{ rate.name|default:"電費費率" }}</span><strong>{{ rate.start_month }} 月至 {{ rate.end_month }} 月</strong><em>每度 NT$ {{ rate.rate_per_kwh }}</em></div>{% endfor %}
+        {% for charge in lease.recurring_charges.all %}{% if charge.enabled %}<div><span>{{ charge.name }}</span><strong>NT$ {{ charge.default_amount }}</strong><em>每月固定費用</em></div>{% endif %}{% endfor %}
+        {% if not lease.electricity_rates.all and not lease.recurring_charges.all %}<p class="muted">尚未設定額外費用或電費費率。</p>{% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -257,6 +257,8 @@ class RentalManagementEditTests(TestCase):
         workspace = self.client.get(reverse('rental:property_list'))
         self.assertContains(workspace, '查看帳單')
         self.assertContains(workspace, reverse('rental:lease_bill_list', args=[self.lease.id]))
+        self.assertContains(workspace, '查看租約')
+        self.assertContains(workspace, reverse('rental:lease_detail', args=[self.lease.id]))
 
         bill_list = self.client.get(reverse('rental:lease_bill_list', args=[self.lease.id]))
         self.assertContains(bill_list, '授權租客填補')

@@ -16,6 +16,7 @@
                     <a class="status" href="{% url 'rental:unit_edit' unit.id %}">編輯房間</a>
                     <a class="status" href="{% url 'rental:lease_create' unit.id %}">建立租約</a>
                     {% if unit.active_lease %}
+                    <a class="status" href="{% url 'rental:lease_detail' unit.active_lease.id %}">查看租約</a>
                     <a class="status status-{{ unit.display_status }}" href="{% url 'rental:lease_bill_list' unit.active_lease.id %}">查看帳單</a>
                     {% endif %}
                 </em>
